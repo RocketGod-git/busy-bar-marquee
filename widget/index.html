@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marquee</title>
+<style>
+  :root {
+    --bg: #07080c;
+    --panel: #11141c;
+    --panel2: #171b26;
+    --line: #232838;
+    --text: #e9ecf4;
+    --dim: #8a91a6;
+    --accent1: #ff2a8a;
+    --accent2: #00e5ff;
+    --good: #2bff6a;
+    --bad: #ff3b4e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
+  body { padding: clamp(10px, 2vw, 24px); }
+  .wrap { max-width: 1440px; margin: 0 auto; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 18px; }
+  .stage, .controls { min-width: 0; }
+  /* Wide windows: preview on the left (pinned), controls on the right. */
+  @media (min-width: 1100px) {
+    .layout { grid-template-columns: minmax(0, 1.2fr) minmax(400px, 1fr); align-items: start; }
+    .stage { position: sticky; top: 12px; }
+  }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .brand { font-weight: 800; letter-spacing: .18em; font-size: 13px; background: linear-gradient(90deg, var(--accent1), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; box-shadow: 0 0 0 0 transparent; }
+  .dot.on { background: var(--good); box-shadow: 0 0 10px var(--good); }
+  .dot.off { background: var(--bad); box-shadow: 0 0 10px var(--bad); }
+
+  .bezel { position: relative; padding: clamp(8px, 1.4vw, 14px); border-radius: 18px; background: linear-gradient(180deg, #1b1f2a, #0c0e14); border: 1px solid #2a3042; box-shadow: 0 20px 60px -20px #000, inset 0 1px 0 #ffffff10; }
+  /* Keep the 72:16 screen proportions and never let it eat more than ~42% of the window height. */
+  .bezel canvas { display: block; width: min(100%, calc(42vh * 4.5)); aspect-ratio: 72 / 16; height: auto; margin: 0 auto; border-radius: 8px; background: #030405; }
+  .bezel .tag { position: absolute; right: 22px; bottom: 4px; font-size: 10px; letter-spacing: .2em; color: #ffffff30; }
+
+  .compose { display: flex; gap: 10px; margin: 16px 0 10px; }
+  .compose input { flex: 1; min-width: 0; font-size: 20px; font-weight: 600; letter-spacing: .02em; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); outline: none; }
+  .compose input:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px #00e5ff22; }
+  button { font: inherit; color: var(--text); cursor: pointer; }
+  .send { border: 0; border-radius: 12px; padding: 0 20px; font-weight: 800; letter-spacing: .06em; background: linear-gradient(135deg, var(--accent1), #8a3cff 55%, var(--accent2)); box-shadow: 0 8px 24px -8px #ff2a8a88; white-space: nowrap; }
+  .send:active { transform: translateY(1px); }
+  .send:disabled { opacity: .5; cursor: progress; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; letter-spacing: .04em; display: inline-flex; gap: 6px; align-items: center; }
+  .chip:hover { border-color: #3a4260; background: var(--panel2); }
+  .chip .x { color: var(--dim); font-weight: 400; }
+  .chip.save { border-style: dashed; color: var(--dim); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .card h2 { margin: 0 0 10px; font-size: 11px; letter-spacing: .18em; color: var(--dim); font-weight: 700; text-transform: uppercase; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .tile { position: relative; border: 1px solid var(--line); border-radius: 10px; padding: 0; overflow: hidden; background: #030405; }
+  .tile canvas { display: block; width: 100%; height: auto; aspect-ratio: 72 / 16; image-rendering: pixelated; }
+  .tile span { position: absolute; left: 8px; bottom: 5px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-shadow: 0 1px 3px #000, 0 0 2px #000; }
+  .tile.on { border-color: var(--accent2); box-shadow: 0 0 0 2px #00e5ff55, 0 0 18px #00e5ff33; }
+
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button { border: 1px solid var(--line); background: var(--panel2); border-radius: 9px; padding: 7px 11px; font-size: 12px; font-weight: 600; }
+  .seg button.on { border-color: transparent; background: linear-gradient(135deg, #ff2a8a33, #00e5ff33); box-shadow: inset 0 0 0 1px #00e5ff99; }
+
+  .row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+  .row label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
+  input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; cursor: pointer; }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+  input[type=color]::-webkit-color-swatch { border: 0; border-radius: 5px; }
+  input[type=range] { width: 150px; accent-color: var(--accent2); }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); cursor: pointer; user-select: none; }
+  .toggle input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: #2a3042; position: relative; cursor: pointer; transition: background .15s; }
+  .toggle input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #cfd5e6; transition: left .15s; }
+  .toggle input:checked { background: linear-gradient(90deg, var(--accent1), var(--accent2)); }
+  .toggle input:checked::after { left: 17px; background: #fff; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 12px; }
+  @media (max-width: 520px) {
+    .compose input { font-size: 16px; padding: 10px 12px; }
+    .send { padding: 0 14px; }
+    .bezel .tag { display: none; }
+  }
+
+  footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 6px; }
+  .ghost { border: 1px solid var(--line); background: transparent; border-radius: 9px; padding: 7px 12px; font-size: 12px; color: var(--dim); }
+  .ghost:hover { color: var(--text); border-color: #3a4260; }
+  .toast { position: fixed; left: 50%; bottom: 18px; transform: translate(-50%, 20px); opacity: 0; background: #1d2333; border: 1px solid #2f3750; padding: 9px 14px; border-radius: 10px; font-size: 13px; transition: all .2s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { border-color: var(--bad); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">MARQUEE</div>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">Connecting...</span></div>
+</header>
+
+<div class="layout">
+<section class="stage">
+<div class="bezel">
+  <canvas id="led" width="720" height="160"></canvas>
+  <div class="tag">BUSY BAR - FRONT</div>
+</div>
+
+<div class="compose">
+  <input id="text" maxlength="200" placeholder="Type a message for the door..." autocomplete="off" spellcheck="false">
+  <button class="send" id="send">SEND</button>
+</div>
+<div class="chips" id="presets"></div>
+</section>
+
+<section class="controls">
+<div class="card">
+  <h2>Background</h2>
+  <div class="tiles" id="tiles"></div>
+  <div class="row">
+    <label>Brightness <input type="range" id="bg_level" min="0" max="100" step="5"></label>
+    <label>Tint <input type="color" id="bg_color"></label>
+    <span style="font-size:11px;color:var(--dim)">Tint applies to Warp, Sparkle and Solid.</span>
+  </div>
+</div>
+
+<div class="two">
+  <div class="card">
+    <h2>Text style</h2>
+    <div class="seg" id="text_fx"></div>
+    <div class="row">
+      <label>Color <input type="color" id="color"></label>
+      <label>Second color <input type="color" id="color2"></label>
+    </div>
+    <div class="row">
+      <div class="seg" id="size"></div>
+      <label class="toggle"><input type="checkbox" id="outline"> Outline</label>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Motion</h2>
+    <div class="seg" id="motion"></div>
+    <div class="row">
+      <label>Speed <input type="range" id="speed" min="1" max="10" step="1"></label>
+    </div>
+    <div class="row">
+      <label class="toggle"><input type="checkbox" id="alert"> Flash on new message</label>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <label class="toggle"><input type="checkbox" id="live"> Live: send every change as you tweak</label>
+  <button class="ghost" id="stop">Stop Marquee</button>
+</footer>
+</section>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { Renderer, W, H } from "/fx.js";
+
+const BGS = [
+  ["plasma", "Plasma"], ["fire", "Fire"], ["matrix", "Matrix"], ["warp", "Warp"], ["rainbow", "Rainbow"],
+  ["aurora", "Aurora"], ["sparkle", "Sparkle"], ["solid", "Solid"], ["none", "None"],
+];
+const TEXT_FX = [["solid", "Solid"], ["chrome", "Chrome"], ["rainbow", "Rainbow"], ["gradient", "Gradient"], ["fire", "Fire"]];
+const MOTIONS = [["scroll", "Scroll"], ["wave", "Wave"], ["static", "Still"], ["blink", "Blink"], ["glitch", "Glitch"], ["typewriter", "Typewriter"]];
+const SIZES = [["normal", "Normal"], ["big", "Big"]];
+
+const DEFAULTS = {
+  text: "WELCOME IN", color: "#FFFFFF", color2: "#00E5FF", text_fx: "chrome", motion: "scroll",
+  size: "normal", speed: 5, bg: "plasma", bg_color: "#FF2A3C", bg_level: 45, outline: true, alert: true,
+};
+const BUILT_IN = [
+  { name: "Come in", look: { text: "COME IN", size: "big", motion: "static", text_fx: "solid", color: "#2BFF6A", bg: "aurora", bg_level: 55, outline: true } },
+  { name: "In a meeting", look: { text: "IN A MEETING", size: "normal", motion: "static", text_fx: "solid", color: "#FF2A3C", bg: "solid", bg_color: "#FF2A3C", bg_level: 18, outline: true } },
+  { name: "Do not disturb", look: { text: "DO NOT DISTURB", size: "normal", motion: "glitch", text_fx: "solid", color: "#FF2A3C", bg: "none", outline: false } },
+  { name: "On a call", look: { text: "ON A CALL", size: "big", motion: "static", text_fx: "gradient", color: "#FFFFFF", color2: "#40A0FF", bg: "warp", bg_color: "#4080FF", bg_level: 80 } },
+  { name: "Back in 10", look: { text: "Back in 10 minutes", size: "normal", motion: "typewriter", text_fx: "solid", color: "#B0FFC0", bg: "matrix", bg_level: 60, speed: 5 } },
+  { name: "Payday", look: { text: "PAYDAY", size: "big", motion: "static", text_fx: "rainbow", bg: "sparkle", bg_color: "#FFD040", bg_level: 80 } },
+  { name: "On fire", look: { text: "WE'RE ON FIRE", size: "normal", motion: "wave", text_fx: "solid", color: "#FFFFFF", bg: "fire", bg_level: 70, outline: true } },
+  { name: "Welcome", look: { ...DEFAULTS } },
+];
+
+const $ = (id) => document.getElementById(id);
+let state = { ...DEFAULTS };
+try { Object.assign(state, JSON.parse(localStorage.getItem("marquee.look") || "{}")); } catch {}
+
+const toRenderer = (s) => ({
+  text: s.text || " ", color: s.color, color2: s.color2, textFx: s.text_fx, motion: s.motion, size: s.size,
+  speed: s.speed, bg: s.bg, bgColor: s.bg_color, bgLevel: s.bg_level, outline: s.outline,
+});
+
+// ---- LED drawing ----------------------------------------------------------------
+const main = new Renderer(toRenderer(state));
+const led = $("led");
+const lctx = led.getContext("2d");
+const dots = document.createElement("canvas");
+const dctx = dots.getContext("2d");
+let P = 10; // dot pitch in device pixels
+
+// Match the canvas to its on-screen size so the dots stay crisp at any window size and display scale.
+function fit() {
+  const w = Math.max(W, Math.round(led.clientWidth * (window.devicePixelRatio || 1)));
+  P = w / W;
+  led.width = dots.width = w;
+  led.height = dots.height = Math.round(P * H);
+}
+new ResizeObserver(fit).observe(led);
+fit();
+
+function drawLed(r, ctx, pitch, round) {
+  const fb = r.fb;
+  ctx.fillStyle = "#030405";
+  ctx.fillRect(0, 0, W * pitch, H * pitch);
+  const rad = pitch * 0.38;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const c = r.color(fb[y * W + x]);
+      ctx.fillStyle = c || "#101218";
+      if (round) {
+        ctx.beginPath();
+        ctx.arc(x * pitch + pitch / 2, y * pitch + pitch / 2, rad, 0, 6.2832);
+        ctx.fill();
+      } else {
+        ctx.fillRect(x * pitch + 0.25, y * pitch + 0.25, pitch - 0.5, pitch - 0.5);
+      }
+    }
+  }
+}
+
+// ---- Background tiles, each a live mini renderer ----------------------------------
+const tiles = BGS.map(([bg, label]) => {
+  const btn = document.createElement("button");
+  btn.className = "tile";
+  const c = document.createElement("canvas");
+  c.width = 216; c.height = 48;
+  btn.append(c);
+  const span = document.createElement("span");
+  span.textContent = label;
+  btn.append(span);
+  btn.onclick = () => change({ bg, bg_level: state.bg_level || 45 });
+  $("tiles").append(btn);
+  const r = new Renderer({ text: " ", bg, bgLevel: 70, bgColor: state.bg_color, outline: false });
+  return { bg, btn, r, ctx: c.getContext("2d") };
+});
+
+function segmented(id, options, key) {
+  const el = $(id);
+  for (const [value, label] of options) {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.dataset.value = value;
+    b.onclick = () => change({ [key]: value });
+    el.append(b);
+  }
+}
+segmented("text_fx", TEXT_FX, "text_fx");
+segmented("motion", MOTIONS, "motion");
+segmented("size", SIZES, "size");
+
+// ---- State <-> controls ------------------------------------------------------------
+function render() {
+  $("text").value !== state.text && document.activeElement !== $("text") && ($("text").value = state.text);
+  for (const k of ["color", "color2", "bg_color"]) $(k).value = state[k];
+  $("bg_level").value = state.bg_level;
+  $("speed").value = state.speed;
+  $("outline").checked = state.outline;
+  $("alert").checked = state.alert;
+  for (const id of ["text_fx", "motion", "size"]) {
+    for (const b of $(id).children) b.classList.toggle("on", b.dataset.value === state[id]);
+  }
+  for (const t of tiles) t.btn.classList.toggle("on", t.bg === state.bg);
+  const tc = state.text_fx === "gradient";
+  $("color2").parentElement.style.opacity = tc ? 1 : 0.4;
+}
+
+let liveTimer = 0;
+function change(patch, fromInput = false) {
+  Object.assign(state, patch);
+  main.set(toRenderer(state));
+  if ("bg_color" in patch) for (const t of tiles) t.r.set({ text: " ", bg: t.bg, bgLevel: 70, bgColor: state.bg_color, outline: false });
+  try { localStorage.setItem("marquee.look", JSON.stringify(state)); } catch {}
+  if (!fromInput) render();
+  if ($("live").checked) {
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => push(false), 600);
+  }
+}
+
+$("text").addEventListener("input", (e) => change({ text: e.target.value }, true));
+$("text").addEventListener("keydown", (e) => { if (e.key === "Enter") push(true); });
+for (const k of ["color", "color2", "bg_color"]) $(k).addEventListener("input", (e) => change({ [k]: e.target.value.toUpperCase() }));
+for (const k of ["bg_level", "speed"]) $(k).addEventListener("input", (e) => change({ [k]: Number(e.target.value) }));
+for (const k of ["outline", "alert"]) $(k).addEventListener("change", (e) => change({ [k]: e.target.checked }));
+$("send").onclick = () => push(true);
+$("stop").onclick = async () => {
+  const r = await fetch("/api/stop", { method: "POST" }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
+  toast(r.ok ? "Marquee stopped" : `Couldn't stop: ${r.error}`, !r.ok);
+};
+
+// ---- Presets --------------------------------------------------------------------------
+function loadCustom() {
+  try { return JSON.parse(localStorage.getItem("marquee.presets") || "[]"); } catch { return []; }
+}
+function drawPresets() {
+  const el = $("presets");
+  el.textContent = "";
+  const custom = loadCustom();
+  const all = [...BUILT_IN.map((p) => ({ ...p, builtIn: true })), ...custom];
+  for (const p of all) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = p.name;
+    b.title = p.look.text;
+    b.onclick = () => { change({ ...DEFAULTS, ...p.look, alert: state.alert }); push(true); };
+    if (!p.builtIn) {
+      const x = document.createElement("span");
+      x.className = "x";
+      x.textContent = "x";
+      x.title = "Remove preset";
+      x.onclick = (e) => {
+        e.stopPropagation();
+        localStorage.setItem("marquee.presets", JSON.stringify(loadCustom().filter((q) => q.name !== p.name)));
+        drawPresets();
+      };
+      b.append(x);
+    }
+    el.append(b);
+  }
+  const save = document.createElement("button");
+  save.className = "chip save";
+  save.textContent = "+ Save current";
+  save.onclick = () => {
+    const name = (state.text || "Preset").slice(0, 18);
+    const list = loadCustom().filter((q) => q.name !== name);
+    list.push({ name, look: { ...state } });
+    localStorage.setItem("marquee.presets", JSON.stringify(list));
+    drawPresets();
+    toast(`Saved "${name}"`);
+  };
+  el.append(save);
+}
+
+// ---- Bar I/O -------------------------------------------------------------------------
+let sending = false;
+async function push(launch) {
+  if (sending && !launch) return;
+  sending = true;
+  $("send").disabled = launch;
+  try {
+    const r = await fetch("/api/send", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values: state, launch }),
+    }).then((r) => r.json());
+    if (!r.ok) throw new Error(r.error);
+    if (launch) toast("Sent to BUSY Bar");
+    setStatus(true);
+  } catch (err) {
+    toast(`Couldn't reach the bar: ${err.message}`, true);
+    setStatus(false);
+  } finally {
+    sending = false;
+    $("send").disabled = false;
+  }
+}
+
+let addr = "";
+function setStatus(ok, text) {
+  $("dot").className = `dot ${ok ? "on" : "off"}`;
+  $("statusText").textContent = text || (ok ? `Connected - ${addr}` : `Bar not reachable - ${addr}`);
+}
+
+let first = true;
+async function poll() {
+  try {
+    const s = await fetch("/api/state").then((r) => r.json());
+    addr = s.addr;
+    setStatus(s.connected);
+    // On open, start from what the bar is showing now.
+    if (first && s.connected && s.values && Object.keys(s.values).length) {
+      Object.assign(state, s.values);
+      main.set(toRenderer(state));
+      $("text").value = state.text;
+      render();
+    }
+    first = false;
+  } catch {
+    setStatus(false, "Widget server stopped");
+  }
+}
+
+let toastTimer = 0;
+function toast(msg, err = false) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = `toast show${err ? " err" : ""}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.className = "toast"), 2200);
+}
+
+// ---- Animation loop at the bar's 15 fps ----------------------------------------------------
+function frame() {
+  main.step();
+  drawLed(main, dctx, P, true);
+  lctx.clearRect(0, 0, led.width, led.height);
+  lctx.filter = `blur(${Math.max(2, P * 0.8)}px)`;
+  lctx.globalAlpha = 0.7;
+  lctx.drawImage(dots, 0, 0);
+  lctx.filter = "none";
+  lctx.globalAlpha = 1;
+  lctx.globalCompositeOperation = "lighter";
+  lctx.drawImage(dots, 0, 0);
+  lctx.globalCompositeOperation = "source-over";
+  for (const t of tiles) {
+    t.r.step();
+    drawLed(t.r, t.ctx, 3, false);
+  }
+}
+setInterval(frame, 66);
+
+render();
+drawPresets();
+poll();
+setInterval(poll, 5000);
+$("text").focus();
+</script>
+</body>
+</html>

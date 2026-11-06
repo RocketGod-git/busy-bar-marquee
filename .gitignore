@@ -1,0 +1,9 @@
+node_modules/
+dist/
+release/
+snaps/
+*.tgz
+*.log
+.DS_Store
+Thumbs.db
+widget/config.json

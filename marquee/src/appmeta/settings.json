@@ -1,0 +1,53 @@
+{
+  "format_version": 1,
+  "version": 1,
+  "fields": {
+    "text": { "type": "string", "label": "Message", "default": "WELCOME IN", "max_length": 200 },
+    "color": { "type": "color", "label": "Text color", "default": "#FFFFFF" },
+    "color2": { "type": "color", "label": "Second text color", "default": "#00E5FF" },
+    "text_fx": {
+      "type": "enum", "label": "Text style", "default": "chrome",
+      "options": [
+        { "value": "solid", "label": "Solid" },
+        { "value": "chrome", "label": "Chrome glint" },
+        { "value": "rainbow", "label": "Rainbow" },
+        { "value": "gradient", "label": "Gradient" },
+        { "value": "fire", "label": "Fire" }
+      ]
+    },
+    "motion": {
+      "type": "enum", "label": "Motion", "default": "scroll",
+      "options": [
+        { "value": "scroll", "label": "Scroll" },
+        { "value": "wave", "label": "Wave" },
+        { "value": "static", "label": "Still" },
+        { "value": "blink", "label": "Blink" },
+        { "value": "glitch", "label": "Glitch" },
+        { "value": "typewriter", "label": "Typewriter" }
+      ]
+    },
+    "size": {
+      "type": "enum", "label": "Text size", "default": "normal",
+      "options": [ { "value": "normal", "label": "Normal" }, { "value": "big", "label": "Big (capitals)" } ]
+    },
+    "speed": { "type": "integer", "label": "Speed", "default": 5, "min": 1, "max": 10, "step": 1 },
+    "bg": {
+      "type": "enum", "label": "Background", "default": "plasma",
+      "options": [
+        { "value": "plasma", "label": "Plasma" },
+        { "value": "fire", "label": "Fire" },
+        { "value": "matrix", "label": "Matrix rain" },
+        { "value": "warp", "label": "Warp speed" },
+        { "value": "rainbow", "label": "Rainbow" },
+        { "value": "aurora", "label": "Aurora" },
+        { "value": "sparkle", "label": "Sparkle" },
+        { "value": "solid", "label": "Solid color" },
+        { "value": "none", "label": "None" }
+      ]
+    },
+    "bg_color": { "type": "color", "label": "Background color", "default": "#FF2A3C" },
+    "bg_level": { "type": "integer", "label": "Background brightness", "default": 45, "min": 0, "max": 100, "step": 5 },
+    "outline": { "type": "boolean", "label": "Outline text", "default": true },
+    "alert": { "type": "boolean", "label": "Flash on new message", "default": true }
+  }
+}

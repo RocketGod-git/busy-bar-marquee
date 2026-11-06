@@ -1,0 +1,18 @@
+{
+  "name": "busy-bar-marquee",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Animated message board for the BUSY Bar, with a desktop control widget",
+  "license": "MIT",
+  "author": "RocketGod",
+  "scripts": {
+    "setup": "npm ci --prefix marquee",
+    "typecheck": "npm run typecheck --prefix marquee",
+    "build": "npm run build --prefix marquee",
+    "widget": "node widget/server.mjs --open",
+    "demos": "node tools/demo.mts"
+  },
+  "engines": {
+    "node": ">=24 <26"
+  }
+}
