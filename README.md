@@ -1,74 +1,78 @@
 # Marquee for BUSY Bar
 
-An animated message board for the [BUSY Bar](https://busy.bar), with a desktop widget to drive it.
+**Turn your [BUSY Bar](https://busy.bar) into an animated, full-color message board.** Type a message on your computer, pick a look, and it lights up the bar, emoji included.
 
 <p align="center">
+  <a href="https://github.com/RocketGod-git/busy-bar-marquee/releases/latest/download/Marquee.exe"><img src="https://img.shields.io/badge/Download_for_Windows-Marquee.exe-ff2a8a?style=for-the-badge&logo=windows&logoColor=white" alt="Download Marquee.exe for Windows"></a>
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/RocketGod-git/busy-bar-marquee?style=for-the-badge&label=Latest&color=00b8d4" alt="Latest release"></a>
+</p>
+
+<p align="center">
+  <img src="docs/marquee-pizza.png" width="432" alt="LUNCH with a pizza emoji over sparkles">
   <img src="docs/marquee-friday.png" width="432" alt="Rainbow text over gold sparkles">
   <img src="docs/marquee-fire.png" width="432" alt="Text over animated fire">
+  <img src="docs/marquee-emoji.png" width="432" alt="SHIP IT with a rocket emoji over a warp-speed starfield">
   <img src="docs/marquee-matrix.png" width="432" alt="Typewriter text over matrix rain">
-  <img src="docs/marquee-warp.png" width="432" alt="Gradient text over a warp-speed starfield">
-  <img src="docs/marquee-plasma.png" width="432" alt="Chrome text over plasma">
+  <img src="docs/marquee-love.png" width="432" alt="A heart and party emoji around FRIDAY over plasma">
   <img src="docs/marquee-glitch.png" width="432" alt="Glitching text">
-  <img src="docs/marquee-wave.png" width="432" alt="Wavy text over a rainbow">
   <img src="docs/marquee-aurora.png" width="432" alt="Text over an aurora">
 </p>
+
+## Get started in 3 steps
+
+You need a BUSY Bar, its USB cable, and a Windows PC. (Mac or Linux? See [below](#mac-or-linux).)
+
+**1. Download [Marquee.exe](https://github.com/RocketGod-git/busy-bar-marquee/releases/latest/download/Marquee.exe).** It's a single file with nothing else to install.
+
+**2. Plug in your BUSY Bar and open Marquee.exe.** Marquee finds the bar on its own.
+
+> Windows may say it "protected your PC" the first time, because Marquee is new. Click **More info**, then **Run anyway**.
+
+**3. Click "Install on my bar."** The first time, Marquee puts its app on your BUSY Bar for you. It takes about ten seconds.
+
+<p align="center"><img src="docs/app-setup.png" width="820" alt="Marquee offering to install itself on the BUSY Bar with one click"></p>
+
+That's it. Type a message, tap an emoji, pick a look, and click **Send**. Once it's on the bar, it keeps running even with your computer off.
+
+**Tip:** right-click Marquee's icon on your taskbar and choose **Pin to taskbar** to keep it one click away. Marquee offers to show you how the first time.
+
+## Pick a view
+
+Use the buttons at the top right to switch views. Each view remembers its own window size and spot on your screen, and the window always scales to fit, so there's no scrolling.
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="docs/app-compact.png" alt="The screen and message box view"><br><b>Screen and message</b><br>Just the preview, the message box, and emoji.</td>
+    <td align="center" width="50%"><img src="docs/app-screen.png" alt="The screen-only view"><br><b>Screen only</b><br>A small live preview to keep in a corner. Double-click it to go back.</td>
+  </tr>
+</table>
+
+The pin button next to the views keeps Marquee on top of your other windows.
+
+<p align="center"><img src="docs/app-full.png" width="820" alt="The full Marquee app with every control"></p>
+
+## What it can do
 
 - **Backgrounds:** Plasma, Fire, Matrix rain, Warp speed, Rainbow, Aurora, Sparkle, Solid, None.
 - **Text styles:** Solid, Chrome glint, Rainbow, Gradient, Fire.
 - **Motion:** Scroll, Wave, Still, Blink, Glitch, Typewriter.
-- **Emoji:** 26 full-color pixel-art emoji, including faces, hearts, thumbs up, fire, stars, coffee, pizza, and party. Type them in the widget or pick from its emoji row. In the bar's own settings, write them as codes like `:fire:` or `:heart:`.
+- **Emoji:** 26 full-color pixel-art emoji, including faces, hearts, thumbs up, fire, stars, coffee, pizza, and party. They show on the bar's back screen too.
+- **Presets:** one click for "Come in," "In a meeting," "Do not disturb," and more, plus your own saved looks.
+- **Live preview:** the app runs the exact same renderer as the bar, so what you see is what you get.
 - **Options:** two text sizes, a black outline that keeps text readable over busy backgrounds, and a white flash plus LED blink when a new message arrives.
 
-Everything renders on the bar itself, so once a message is set it keeps running with your computer off.
+**At the bar:** scroll wheel = cycle backgrounds · OK = cycle motion · Start = cycle text style · Back = quit. You can also start **Marquee** from the bar itself (mode selector → **Apps**).
 
-## Get started
+## Mac or Linux
 
-Everything you need is on the **[latest release](../../releases/latest)** page.
-
-**1. Put Marquee on your BUSY Bar**
-
-1. Download `app.rocketgod.marquee-<version>.tgz` from the release.
-2. Plug the BUSY Bar into your computer with its USB cable, and open <http://10.0.4.20> in your browser.
+1. Download `app.rocketgod.marquee-<version>.tgz` from the [latest release](../../releases/latest).
+2. Plug in the BUSY Bar with its USB cable, and open <http://10.0.4.20> in your browser.
 3. Click **Apps** → **+ Add app**. Pick the file, click **Upload**, then **Install app**.
+4. Download `marquee-widget-mac-linux.zip` from the release, unzip it, and run `node widget/server.mjs --open` with [Node.js 24](https://nodejs.org). It opens the same control panel as an app window in Chrome or Edge.
 
-**2. Control it from your computer**
+## Over Wi-Fi
 
-- **Windows:** download `Marquee.exe` from the release and double-click it. There's nothing else to install. If Windows says it "protected your PC," click **More info** → **Run anyway** (the app is new, so Windows doesn't recognize it yet). Right-click its taskbar icon and choose **Pin to taskbar** to keep it handy.
-- **Mac or Linux:** see [Desktop widget](#desktop-widget) below.
-
-Type a message, pick a look, and click **Send**. You can also start **Marquee** from the bar itself (mode selector → **Apps**).
-
-**At the bar:** scroll wheel = cycle backgrounds · OK = cycle motion · Start = cycle text style · Back = quit.
-
-Every option is also in the app's settings in the bar's web interface. The desktop widget is faster, though.
-
-## Desktop widget
-
-<p align="center"><img src="docs/widget.jpg" width="800" alt="The Marquee desktop widget"></p>
-
-The widget is a small control panel with:
-
-- a live LED preview that runs the same renderer as the bar
-- animated background tiles
-- one-click presets, plus your own saved presets
-- color pickers and sliders
-
-The buttons at the top right switch between three views, and each one remembers its own window size and position:
-
-- all controls
-- just the screen and the message box
-- the screen alone, small enough to tuck in a corner (double-click it to go back)
-
-On Windows, the pin button keeps the window on top of others. The window always scales to fit, so there's no scrolling.
-
-**Send** (or Enter) pushes the look to the bar and brings Marquee to the front. **Live** streams every tweak as you make it. The layout adapts to any window size.
-
-You need the Marquee app installed on the bar (step 1 above).
-
-- **Windows:** download `Marquee.exe` from the [latest release](../../releases/latest) and run it. It's a regular desktop app that talks straight to the bar, with nothing else to install. To build it yourself, run `powershell -ExecutionPolicy Bypass -File widget\app\install.ps1` (needs the .NET 10 SDK and Node.js 24). That also adds Start menu and desktop shortcuts.
-- **macOS or Linux:** download `marquee-widget-mac-linux.zip` from the release (or clone the repository), then run `node widget/server.mjs --open` with [Node.js 24](https://nodejs.org). It opens as an app window in Chrome or Edge, and the background server exits a minute after you close the window.
-
-**Over Wi-Fi:** the widget uses USB (10.0.4.20) by default. To use Wi-Fi instead, create a `config.json` with `addr` set to the bar's IP, and `password` if **Password protection** is on in the bar's web interface (see `widget/config.example.json`). On Windows, put it in `%APPDATA%\Marquee`. Elsewhere, put it in `widget/`, or use the `--addr` / `--password` flags. The `BUSY_ADDR` / `BUSY_PASSWORD` environment variables work everywhere.
+Marquee talks to the bar over USB by default. To use Wi-Fi instead, create a `config.json` with `addr` set to the bar's IP address, plus `password` if **Password protection** is on in the bar's web interface (see `widget/config.example.json`). On Windows, put it in `%APPDATA%\Marquee`. On Mac or Linux, put it in `widget/`, or use the `--addr` / `--password` flags. The `BUSY_ADDR` / `BUSY_PASSWORD` environment variables work everywhere.
 
 ## How it renders
 
@@ -97,6 +101,8 @@ npm run build        # build marquee/dist/app.rocketgod.marquee.tgz
 
 To install on a bar connected over USB: `cd marquee && npm run app:install && npm run app:run`.
 
+To build `Marquee.exe` (needs the .NET 10 SDK), run `npm run build` first so the bar app gets packed inside it, then `powershell -ExecutionPolicy Bypass -File widget\app\install.ps1`. That installs it to `%LOCALAPPDATA%\Programs\Marquee` and adds Start menu and desktop shortcuts.
+
 Developer tools in `tools/`:
 
 | Script | Purpose |
@@ -104,12 +110,12 @@ Developer tools in `tools/`:
 | `snap.mjs` | Saves both screens of a connected bar as PNGs |
 | `sheet.mjs` | Stacks screenshots into one image |
 | `grabfont.mjs` | Rebuilds `marquee/src/font.ts` from the bar's fonts |
-| `demo.mts` | Renders the animated images above |
+| `demo.mts` | Renders the animated sign images above |
 | `icons.mjs`, `ico.mjs` | Generate the app and widget icons |
 
 `marquee/preview.mts` draws looks straight onto a connected bar from your computer. All of these honor `BUSY_ADDR`.
 
-Pushing a tag like `v1.0.0` builds the app and publishes a GitHub release with the `.tgz` file, `Marquee.exe`, and the Mac/Linux widget zip. The release page opens with the install steps from `.github/release-notes.md`, followed by the tag's message as "What's new".
+Pushing a tag like `v1.0.0` builds the bar app, packs it into `Marquee.exe`, and publishes a GitHub release with `Marquee.exe`, the `.tgz` file, and the Mac/Linux widget zip. The release page opens with the install steps from `.github/release-notes.md`, followed by the tag's message as "What's new".
 
 ## Credits
 

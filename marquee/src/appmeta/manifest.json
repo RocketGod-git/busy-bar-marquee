@@ -2,7 +2,7 @@
   "format_version": 1,
   "id": "app.rocketgod.marquee",
   "name": "Marquee",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "api_version": "27.12.0",
   "description": "Animated message board you control from your desktop",
   "author": "RocketGod",

@@ -1,5 +1,5 @@
 // Renders Marquee looks into animated PNGs (APNG) with an LED-matrix look, for the README.
-// Uses the same renderer the BUSY Bar runs. Usage: node tools/demo.mts
+// Uses the same renderer the BUSY Bar runs. Usage: node tools/demo.mts [name...]
 import { deflateSync, crc32 } from "node:zlib";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { Renderer, W, H, type Look } from "../marquee/src/fx.ts";
@@ -17,7 +17,11 @@ const DEMOS: Record<string, Partial<Look>> = {
   "marquee-glitch": { text: "DO NOT DISTURB", motion: "glitch", textFx: "solid", color: "#FF2A3C", bg: "none", outline: false },
   "marquee-wave": { text: "GOOD VIBES ONLY", motion: "wave", textFx: "solid", bg: "rainbow", bgLevel: 35, speed: 5 },
   "marquee-aurora": { text: "Deep work", motion: "static", textFx: "solid", bg: "aurora", bgLevel: 70 },
+  "marquee-emoji": { text: "SHIP IT :rocket:", motion: "static", textFx: "chrome", bg: "warp", bgColor: "#FF8C40", bgLevel: 70, speed: 8 },
+  "marquee-pizza": { text: "LUNCH :pizza:", size: "big", motion: "static", textFx: "solid", color: "#FFE08A", bg: "sparkle", bgColor: "#FF8C40", bgLevel: 70 },
+  "marquee-love": { text: ":heart: FRIDAY :party:", motion: "static", textFx: "rainbow", bg: "plasma", bgLevel: 30 },
 };
+const ONLY = process.argv.slice(2);
 
 function chunk(type: string, data: Buffer): Buffer {
   const len = Buffer.alloc(4);
@@ -90,6 +94,7 @@ function apng(r: Renderer): Buffer {
 
 mkdirSync(OUT, { recursive: true });
 for (const [name, look] of Object.entries(DEMOS)) {
+  if (ONLY.length && !ONLY.includes(name)) continue;
   const r = new Renderer(look);
   // Let backgrounds like fire and matrix settle before recording.
   for (let i = 0; i < 20; i++) r.step();

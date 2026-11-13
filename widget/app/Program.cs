@@ -70,11 +70,17 @@ sealed class Bar
 
     public string Addr { get; }
     readonly string appId;
-    readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(4) };
+    readonly string bundledVersion;
+    readonly byte[]? package;
+    // Each call sets its own deadline: short for everyday calls, long for installing.
+    readonly HttpClient http = new() { Timeout = Timeout.InfiniteTimeSpan };
 
-    public Bar(string appId)
+    /// <param name="package">The Marquee app package for the bar, embedded in Marquee.exe, if any.</param>
+    public Bar(string appId, string bundledVersion, byte[]? package)
     {
         this.appId = appId;
+        this.bundledVersion = bundledVersion;
+        this.package = package;
         var config = new JsonObject();
         foreach (var dir in new[] { AppContext.BaseDirectory, Paths.Roaming })
         {
@@ -99,29 +105,99 @@ sealed class Bar
         if (password != "") http.DefaultRequestHeaders.Add("X-API-Token", password);
     }
 
-    async Task<JsonObject> Call(HttpMethod method, string path, JsonNode? body = null)
+    async Task<JsonObject> Call(HttpMethod method, string path, JsonNode? body = null, byte[]? upload = null, int seconds = 4)
     {
         using var req = new HttpRequestMessage(method, path);
         if (body != null) req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
-        using var res = await http.SendAsync(req);
-        var text = await res.Content.ReadAsStringAsync();
+        if (upload != null)
+        {
+            req.Content = new ByteArrayContent(upload);
+            req.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        }
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
+        using var res = await http.SendAsync(req, cts.Token);
+        var text = await res.Content.ReadAsStringAsync(cts.Token);
         if (!res.IsSuccessStatusCode) throw new Exception($"{(int)res.StatusCode} {text[..Math.Min(200, text.Length)]}");
         return text.Trim() == "" ? new JsonObject() : JsonNode.Parse(text) as JsonObject ?? new JsonObject();
     }
 
     string SettingsPath => $"apps/settings?app_id={Uri.EscapeDataString(appId)}";
 
+    /// <summary>Compares dotted version numbers.</summary>
+    static int CompareVersions(string a, string b)
+    {
+        var x = a.Split('.');
+        var y = b.Split('.');
+        for (var i = 0; i < Math.Max(x.Length, y.Length); i++)
+        {
+            int.TryParse(i < x.Length ? x[i] : "0", out var p);
+            int.TryParse(i < y.Length ? y[i] : "0", out var q);
+            if (p != q) return p.CompareTo(q);
+        }
+        return 0;
+    }
+
     public async Task<JsonObject> State()
     {
+        JsonObject list;
         try
         {
-            var doc = await Call(HttpMethod.Get, SettingsPath);
-            return new JsonObject { ["connected"] = true, ["addr"] = Addr, ["values"] = doc["values"]?.DeepClone() ?? new JsonObject() };
+            list = await Call(HttpMethod.Get, "apps/list");
         }
         catch (Exception e)
         {
             return new JsonObject { ["connected"] = false, ["addr"] = Addr, ["error"] = e.Message };
         }
+        var mine = (list["apps"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(a => a["id"]?.ToString() == appId);
+        var installed = mine?["version"]?.ToString();
+        var app = new JsonObject
+        {
+            ["installed"] = installed,
+            ["bundled"] = package != null ? bundledVersion : null,
+            // Offer an install when the bar doesn't have Marquee, or an update when this copy is newer.
+            ["offer"] = package == null ? null : installed == null ? "install" : CompareVersions(bundledVersion, installed) > 0 ? "update" : null,
+        };
+        var values = new JsonObject();
+        if (installed != null)
+        {
+            try
+            {
+                values = (await Call(HttpMethod.Get, SettingsPath))["values"]?.DeepClone() as JsonObject ?? new JsonObject();
+            }
+            catch { }
+        }
+        return new JsonObject { ["connected"] = true, ["addr"] = Addr, ["values"] = values, ["app"] = app };
+    }
+
+    /// <summary>Puts the embedded Marquee app on the bar (or updates it) and starts it.</summary>
+    public async Task Install()
+    {
+        if (package == null) throw new Exception("This copy of Marquee doesn't include the bar app.");
+        // An update keeps the message and look that are on the bar now.
+        JsonObject? kept = null;
+        try
+        {
+            kept = await Call(HttpMethod.Get, SettingsPath);
+        }
+        catch { }
+        var staged = await Call(HttpMethod.Post, "apps/stage", upload: package, seconds: 120);
+        var key = staged["install_key"]?.ToString();
+        if (string.IsNullOrEmpty(key)) throw new Exception(staged["error_code"]?.ToString() ?? "The BUSY Bar didn't accept the app.");
+        await Call(HttpMethod.Post, $"apps/install?install_key={Uri.EscapeDataString(key)}", seconds: 120);
+        if (kept?["values"] is JsonObject old && old.Count > 0)
+        {
+            try
+            {
+                var now = await Call(HttpMethod.Get, SettingsPath);
+                if (now["values"]?.ToJsonString() != old.ToJsonString())
+                {
+                    now["values"] = old.DeepClone();
+                    await Call(HttpMethod.Put, SettingsPath, now);
+                }
+            }
+            catch { }
+        }
+        await Call(HttpMethod.Post, $"apps/launch?app_id={Uri.EscapeDataString(appId)}", seconds: 15);
     }
 
     public async Task Send(JsonObject values, bool launch)
@@ -205,7 +281,7 @@ sealed class MainForm : Form
     public MainForm()
     {
         var app = JsonNode.Parse(Resource("web/app.json")!)!;
-        bar = new Bar(app["id"]!.GetValue<string>());
+        bar = new Bar(app["id"]!.GetValue<string>(), app["version"]!.GetValue<string>(), Resource("marquee.tgz"));
         Text = "Marquee";
         BackColor = Back;
         using (var ico = Assembly.GetExecutingAssembly().GetManifestResourceStream("marquee.ico")) if (ico != null) Icon = new Icon(ico);
@@ -420,6 +496,10 @@ sealed class MainForm : Form
                             var raw = e.Request.Content == null ? "{}" : await new StreamReader(e.Request.Content).ReadToEndAsync();
                             var req = JsonNode.Parse(raw == "" ? "{}" : raw) as JsonObject ?? new JsonObject();
                             await bar.Send(req["values"] as JsonObject ?? new JsonObject(), req["launch"]?.GetValueKind() == JsonValueKind.True);
+                            e.Response = Json(200, new JsonObject { ["ok"] = true });
+                            break;
+                        case ("POST", "/api/install"):
+                            await bar.Install();
                             e.Response = Json(200, new JsonObject { ["ok"] = true });
                             break;
                         case ("POST", "/api/stop"):

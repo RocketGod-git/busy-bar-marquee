@@ -1,5 +1,6 @@
-# Push a tag like v1.0.0 to build Marquee and publish a release with the installable
-# .tgz package, the Windows widget app (Marquee.exe), and a zip of the desktop widget attached.
+# Push a tag like v1.0.0 to build Marquee and publish a release with Marquee.exe (the Windows
+# app, which carries the bar app inside and installs it with one click), the bar app's .tgz
+# package, and a zip of the desktop widget for Mac and Linux.
 name: Release
 
 on:
@@ -7,7 +8,26 @@ on:
     tags: ["v*.*.*"]
 
 jobs:
+  bar-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Build the bar app
+        run: |
+          cd marquee
+          npm ci
+          npm run typecheck
+          npm run build -- --tgz-name "{id}-{version}.tgz"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: bar-app
+          path: marquee/dist/*.tgz
+
   exe:
+    needs: bar-app
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -17,9 +37,16 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x
+      - uses: actions/download-artifact@v5
+        with:
+          name: bar-app
+          path: marquee/dist
       - name: Build Marquee.exe
         # Self-contained, so it runs on any 64-bit Windows PC with nothing else to install.
         run: dotnet publish widget/app/Marquee.csproj -c Release --self-contained true -p:EnableCompressionInSingleFile=true -o out
+      - name: Check the bar app is inside
+        shell: pwsh
+        run: if (-not (Test-Path widget/app/payload/marquee.tgz)) { throw "Marquee.exe was built without the bar app" }
       - uses: actions/upload-artifact@v5
         with:
           name: exe
@@ -32,19 +59,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v6
+      - uses: actions/download-artifact@v5
         with:
-          node-version: 24
-
-      - name: Build the app
-        run: |
-          mkdir -p release
-          cd marquee
-          npm ci
-          npm run typecheck
-          npm run build -- --tgz-name "{id}-{version}.tgz"
-          cp dist/*.tgz ../release/
-
+          name: bar-app
+          path: release
       - uses: actions/download-artifact@v5
         with:
           name: exe

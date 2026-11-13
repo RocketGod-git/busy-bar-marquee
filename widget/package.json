@@ -1,7 +1,7 @@
 {
   "name": "marquee-widget",
   "private": true,
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Desktop control panel for the Marquee BUSY Bar app",
   "type": "module",
   "scripts": {

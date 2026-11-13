@@ -13,7 +13,7 @@
     <Product>Marquee</Product>
     <Company>RocketGod</Company>
     <Description>Desktop control panel for the Marquee BUSY Bar app</Description>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -38,6 +38,7 @@
     <ItemGroup>
       <WebFile Include="web\*" />
       <EmbeddedResource Include="@(WebFile)" LogicalName="web/%(WebFile.Filename)%(WebFile.Extension)" />
+      <EmbeddedResource Include="payload\marquee.tgz" LogicalName="marquee.tgz" Condition="Exists('payload\marquee.tgz')" />
     </ItemGroup>
   </Target>
 

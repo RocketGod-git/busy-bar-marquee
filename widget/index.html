@@ -50,7 +50,13 @@
   .views svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
   .views .sep { width: 1px; margin: 4px 3px; background: var(--line); }
   .pin { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 20; display: flex; align-items: center; gap: 14px; width: min(560px, calc(100vw - 24px)); padding: 12px 14px; border-radius: 14px; background: #161a26; border: 1px solid #2f3750; box-shadow: 0 18px 50px -12px #000; }
-  .pin[hidden] { display: none; }
+  .pin[hidden], .setup[hidden] { display: none; }
+  .setup { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; padding: 14px 16px; border-radius: 14px; background: linear-gradient(135deg, #ff2a8a1a, #00e5ff1a); border: 1px solid #00e5ff55; }
+  .setup .msg { flex: 1; font-size: 13px; color: var(--dim); }
+  .setup .msg b { display: block; color: var(--text); font-size: 15px; margin-bottom: 2px; }
+  .setup .send { padding: 11px 18px; font-size: 13px; }
+  .setup-icon { font-size: 26px; line-height: 1; }
+  body.v-screen .setup { display: none; }
   .pin .msg { flex: 1; font-size: 13px; color: var(--dim); }
   .pin .msg b { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
   .pin .send { padding: 9px 14px; font-size: 12px; }
@@ -135,6 +141,12 @@
     </div>
   </div>
 </header>
+
+<div class="setup" id="setup" hidden>
+  <div class="setup-icon" id="setupIcon"></div>
+  <div class="msg" id="setupMsg"></div>
+  <button class="send" id="setupGo" hidden></button>
+</div>
 
 <div class="layout">
 <section class="stage">
@@ -435,8 +447,65 @@ async function push(launch) {
 let addr = "";
 function setStatus(ok, text) {
   $("dot").className = `dot ${ok ? "on" : "off"}`;
-  $("statusText").textContent = text || (ok ? `Connected - ${addr}` : `Bar not reachable - ${addr}`);
+  $("statusText").textContent = text || (ok ? "Connected to BUSY Bar" : "BUSY Bar not found");
+  $("statusText").parentElement.title = addr ? `BUSY Bar address: ${addr}` : "";
 }
+
+// ---- First-run help: find the bar, then put Marquee on it -------------------------------
+let installing = false;
+let misses = 0;
+function setup(s) {
+  const card = $("setup");
+  const show = (icon, title, body, button) => {
+    $("setupIcon").textContent = icon;
+    $("setupMsg").innerHTML = `<b>${title}</b>${body}`;
+    $("setupGo").hidden = !button;
+    if (button) $("setupGo").textContent = button;
+    if (card.hidden) {
+      card.hidden = false;
+      requestAnimationFrame(fitView);
+    }
+  };
+  const hide = () => {
+    if (!card.hidden) {
+      card.hidden = true;
+      requestAnimationFrame(fitView);
+    }
+  };
+  if (installing) return;
+  if (!s || !s.connected) {
+    // A single missed check is often just the bar busy; say something after two.
+    if (++misses >= 2) show("🔌", "Plug in your BUSY Bar", "Connect it to this computer with its USB cable. Marquee finds it on its own.");
+    return;
+  }
+  misses = 0;
+  const app = s.app;
+  if (app?.offer === "install") {
+    show("✨", "One more step: put Marquee on your BUSY Bar", "It takes about ten seconds, and you only do it once.", "Install on my bar");
+  } else if (app?.offer === "update") {
+    show("⬆️", "A newer Marquee is ready for your BUSY Bar", `Your bar has version ${app.installed}. This one is ${app.bundled}.`, "Update my bar");
+  } else {
+    hide();
+  }
+}
+$("setupGo").onclick = async () => {
+  installing = true;
+  $("setupGo").disabled = true;
+  $("setupMsg").innerHTML = "<b>Installing Marquee on your BUSY Bar...</b>Keep the bar plugged in. This takes a few seconds.";
+  const r = await fetch("/api/install", { method: "POST" }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
+  installing = false;
+  $("setupGo").disabled = false;
+  if (r.ok) {
+    $("setupIcon").textContent = "🎉";
+    $("setupMsg").innerHTML = "<b>Marquee is on your BUSY Bar</b>Type a message and click Send.";
+    $("setupGo").hidden = true;
+    first = true; // load the bar's settings fresh
+    setTimeout(() => { $("setup").hidden = true; fitView(); poll(); }, 3500);
+  } else {
+    toast(`Couldn't install: ${r.error}`, true);
+    poll();
+  }
+};
 
 let first = true;
 async function poll() {
@@ -444,6 +513,7 @@ async function poll() {
     const s = await fetch("/api/state").then((r) => r.json());
     addr = s.addr;
     setStatus(s.connected);
+    setup(s);
     // On open, start from what the bar is showing now.
     if (first && s.connected && s.values && Object.keys(s.values).length) {
       Object.assign(state, s.values, { text: fromCodes(String(s.values.text ?? "")) });
@@ -453,7 +523,7 @@ async function poll() {
     }
     first = false;
   } catch {
-    setStatus(false, "Widget server stopped - close and reopen Marquee");
+    setStatus(false, "Lost touch with the app - close and reopen Marquee");
   }
 }
 

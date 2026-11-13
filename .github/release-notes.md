@@ -1,18 +1,19 @@
-## Get started in two steps
+<p align="center"><img src="https://raw.githubusercontent.com/RocketGod-git/busy-bar-marquee/main/docs/marquee-pizza.png" width="432" alt="LUNCH with a pizza emoji on the BUSY Bar"> <img src="https://raw.githubusercontent.com/RocketGod-git/busy-bar-marquee/main/docs/marquee-friday.png" width="432" alt="Rainbow text over gold sparkles"></p>
 
-**1. Put Marquee on your BUSY Bar**
+## Get started in 3 steps (Windows)
 
-1. Download **`app.rocketgod.marquee-VERSION.tgz`** below.
-2. Plug the BUSY Bar into your computer with its USB cable.
-3. Open <http://10.0.4.20> in your web browser.
-4. Click **Apps**, then **+ Add app**. Pick the file you downloaded, click **Upload**, then **Install app**.
+**1. Download `Marquee.exe` below.** It's a single file with nothing else to install.
 
-**2. Get the desktop app to control it (Windows)**
+**2. Plug in your BUSY Bar with its USB cable and open Marquee.exe.** Marquee finds the bar on its own.
 
-1. Download **`Marquee.exe`** below. There's nothing else to install.
-2. Double-click it. Windows may say it "protected your PC" because the app is new: click **More info**, then **Run anyway**.
-3. Type a message and click **Send**. To keep the app handy, right-click its taskbar icon and choose **Pin to taskbar**.
+> Windows may say it "protected your PC" the first time, because Marquee is new. Click **More info**, then **Run anyway**.
 
-On a Mac or Linux, download **`marquee-widget-mac-linux.zip`** instead and follow the [README](https://github.com/RocketGod-git/busy-bar-marquee#desktop-widget).
+**3. Click "Install on my bar."** The first time, Marquee puts its app on your BUSY Bar for you. It takes about ten seconds.
 
-Once a message is sent, it stays on the bar even when your computer is off.
+<p align="center"><img src="https://raw.githubusercontent.com/RocketGod-git/busy-bar-marquee/main/docs/app-setup.png" width="760" alt="Marquee offering to install itself on the BUSY Bar with one click"></p>
+
+Then type a message, tap an emoji, pick a look, and click **Send**. Once it's on the bar, it keeps running even with your computer off.
+
+**Already have Marquee on your bar?** Just open the new Marquee.exe. If your bar has an older version, it offers a one-click update and keeps your current message.
+
+**Mac or Linux?** Download `app.rocketgod.marquee-VERSION.tgz` and `marquee-widget-mac-linux.zip` below, then follow the [Mac or Linux steps](https://github.com/RocketGod-git/busy-bar-marquee#mac-or-linux).
