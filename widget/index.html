@@ -18,17 +18,42 @@
     --bad: #ff3b4e;
   }
   * { box-sizing: border-box; }
+  html { scrollbar-width: thin; scrollbar-color: #2f3750 transparent; overflow-x: hidden; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
-  body { padding: clamp(10px, 2vw, 24px); }
-  .wrap { max-width: 1440px; margin: 0 auto; }
-  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 18px; }
+  /* The whole page is scaled with CSS zoom so each view fits its window with no scrolling. */
+  .wrap { padding: 18px 22px 10px; margin: 0 auto; }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 20px; }
   .stage, .controls { min-width: 0; }
-  /* Wide windows: preview on the left (pinned), controls on the right. */
-  @media (min-width: 1100px) {
-    .layout { grid-template-columns: minmax(0, 1.2fr) minmax(400px, 1fr); align-items: start; }
-    .stage { position: sticky; top: 12px; }
-  }
+  /* Landscape windows: preview and message on the left, controls on the right. */
+  body.wide.v-full .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; }
+  body.wide.v-full .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  body.wide.v-full .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Message view: just the screen, the message box, and emoji. */
+  body.v-compact .controls, body.v-compact #presets, body.v-compact .bezel .tag { display: none; }
+  body.v-compact .emojis { margin-bottom: 0; }
+  /* Screen view: only the LED screen, with the view buttons on hover. */
+  body.v-screen { overflow: hidden; }
+  body.v-screen .wrap { padding: 6px; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  body.v-screen .layout, body.v-screen .stage { width: 100%; }
+  body.v-screen .compose, body.v-screen .emojis, body.v-screen #presets, body.v-screen .controls, body.v-screen .bezel .tag { display: none; }
+  body.v-screen .bezel { padding: 6px; border-radius: 12px; }
+  body.v-screen .bezel canvas { width: min(100%, calc((100vh - 26px) * 4.5)); border-radius: 6px; }
+  body.v-screen header { position: fixed; top: 8px; right: 10px; z-index: 5; margin: 0; opacity: 0; transition: opacity .15s; }
+  body.v-screen:hover header { opacity: 1; }
+  body.v-screen .brand, body.v-screen .status { display: none; }
   header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .hright { display: flex; align-items: center; gap: 10px; }
+  .views { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: #0b0d13e6; }
+  .views button { display: grid; place-items: center; width: 28px; height: 24px; border: 0; border-radius: 999px; background: none; color: var(--dim); }
+  .views button:hover { color: var(--text); background: var(--panel2); }
+  .views button.on { color: var(--text); background: linear-gradient(135deg, #ff2a8a44, #00e5ff44); }
+  .views svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .views .sep { width: 1px; margin: 4px 3px; background: var(--line); }
+  .pin { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 20; display: flex; align-items: center; gap: 14px; width: min(560px, calc(100vw - 24px)); padding: 12px 14px; border-radius: 14px; background: #161a26; border: 1px solid #2f3750; box-shadow: 0 18px 50px -12px #000; }
+  .pin[hidden] { display: none; }
+  .pin .msg { flex: 1; font-size: 13px; color: var(--dim); }
+  .pin .msg b { display: block; color: var(--text); font-size: 14px; margin-bottom: 2px; }
+  .pin .send { padding: 9px 14px; font-size: 12px; }
   .brand { font-weight: 800; letter-spacing: .18em; font-size: 13px; background: linear-gradient(90deg, var(--accent1), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; box-shadow: 0 0 0 0 transparent; }
@@ -37,7 +62,7 @@
 
   .bezel { position: relative; padding: clamp(8px, 1.4vw, 14px); border-radius: 18px; background: linear-gradient(180deg, #1b1f2a, #0c0e14); border: 1px solid #2a3042; box-shadow: 0 20px 60px -20px #000, inset 0 1px 0 #ffffff10; }
   /* Keep the 72:16 screen proportions and never let it eat more than ~42% of the window height. */
-  .bezel canvas { display: block; width: min(100%, calc(42vh * 4.5)); aspect-ratio: 72 / 16; height: auto; margin: 0 auto; border-radius: 8px; background: #030405; }
+  .bezel canvas { display: block; width: 100%; aspect-ratio: 72 / 16; height: auto; margin: 0 auto; border-radius: 8px; background: #030405; }
   .bezel .tag { position: absolute; right: 22px; bottom: 4px; font-size: 10px; letter-spacing: .2em; color: #ffffff30; }
 
   .compose { display: flex; gap: 10px; margin: 16px 0 10px; }
@@ -99,7 +124,16 @@
 <div class="wrap">
 <header>
   <div class="brand">MARQUEE</div>
-  <div class="status"><span class="dot" id="dot"></span><span id="statusText">Connecting...</span></div>
+  <div class="hright">
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">Connecting...</span></div>
+    <div class="views" id="views">
+      <button data-view="full" title="All controls"><svg viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="12" rx="2"/><path d="M1.5 6.5h13M8 6.5V14"/></svg></button>
+      <button data-view="compact" title="Screen and message box"><svg viewBox="0 0 16 16"><rect x="1.5" y="2" width="13" height="6" rx="1.5"/><path d="M2 11.5h12M2 14h7"/></svg></button>
+      <button data-view="screen" title="Screen only"><svg viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="13" height="7" rx="1.5"/></svg></button>
+      <span class="sep host-only"></span>
+      <button id="ontop" class="host-only" title="Keep on top of other windows"><svg viewBox="0 0 16 16"><path d="M10 1.8 14.2 6l-2 .6-2.6 2.6.3 3.2-1.3 1.3L5.8 10.9 2 14.7M5.1 3.5l7.4 7.4M9.5 1.5 6 5l-2.7.2L2 6.5"/></svg></button>
+    </div>
+  </div>
 </header>
 
 <div class="layout">
@@ -161,6 +195,11 @@
 </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="pin" id="pin" hidden>
+  <div class="msg" id="pinMsg"><b>Keep Marquee on your taskbar?</b>Then it's one click away whenever you want to change the sign.</div>
+  <button class="send" id="pinYes">Show me how</button>
+  <button class="ghost" id="pinNo">No thanks</button>
+</div>
 
 <script type="module">
 import { Renderer, W, H } from "/fx.js";
@@ -208,7 +247,9 @@ let P = 10; // dot pitch in device pixels
 
 // Match the canvas to its on-screen size so the dots stay crisp at any window size and display scale.
 function fit() {
-  const w = Math.max(W, Math.round(led.clientWidth * (window.devicePixelRatio || 1)));
+  // The on-screen width, after the page zoom, in device pixels.
+  const w = Math.max(W, Math.round(led.getBoundingClientRect().width * (window.devicePixelRatio || 1)));
+  if (w === led.width) return;
   P = w / W;
   led.width = dots.width = w;
   led.height = dots.height = Math.round(P * H);
@@ -364,6 +405,8 @@ function drawPresets() {
     toast(`Saved "${name}"`);
   };
   el.append(save);
+  // Presets can wrap onto another row, so refit.
+  requestAnimationFrame(() => fitView());
 }
 
 // ---- Bar I/O -------------------------------------------------------------------------
@@ -443,13 +486,117 @@ function frame() {
 }
 setInterval(frame, 66);
 
+// ---- Views and fitting -------------------------------------------------------------------
+// Marquee.exe hosts this page in WebView2 and resizes its window per view; in a browser the
+// page just adapts to whatever window it gets.
+const host = window.chrome?.webview;
+const wrap = document.querySelector(".wrap");
+let view = "full";
+try { view = localStorage.getItem("marquee.view") || "full"; } catch {}
+
+/** Scales the page so the current view fills the window with no scrolling. */
+function fitView() {
+  document.body.classList.toggle("wide", innerWidth / innerHeight > 1.25 && innerWidth > 820);
+  const root = document.documentElement.style;
+  // No scrollbar while measuring: one would narrow the page and throw the measurements off.
+  root.overflowY = "hidden";
+  wrap.style.zoom = "1";
+  if (view !== "screen") {
+    // Zoom changes the layout width, which changes the height, so search for the largest zoom
+    // whose height still fits the window.
+    const fits = (z) => {
+      wrap.style.zoom = String(z);
+      return wrap.getBoundingClientRect().height <= innerHeight - 1;
+    };
+    let lo = 0.45;
+    let hi = view === "full" ? 1.4 : 1;
+    if (fits(hi)) lo = hi;
+    else for (let i = 0; i < 9; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid;
+      else hi = mid;
+    }
+    wrap.style.zoom = String(lo);
+    // Only a window too small for even the smallest zoom gets a scrollbar.
+    if (wrap.getBoundingClientRect().height > innerHeight) root.overflowY = "auto";
+  }
+  fit();
+}
+
+/** Natural size of a view in CSS pixels, so the window can open at a size that suits it. */
+function suggestedSize(v) {
+  if (v === "screen") return { w: 560, h: Math.round((560 - 24) / 4.5 + 24) };
+  if (v === "compact") return { w: 760, h: 0 };
+  return { w: 1240, h: 800 };
+}
+
+function setView(v, fromHost = false) {
+  view = ["full", "compact", "screen"].includes(v) ? v : "full";
+  document.body.className = document.body.className.replace(/\bv-\w+/g, "").trim() + ` v-${view}`;
+  for (const b of $("views").querySelectorAll("[data-view]")) b.classList.toggle("on", b.dataset.view === view);
+  try { localStorage.setItem("marquee.view", view); } catch {}
+  if (host && !fromHost) host.postMessage({ type: "view", view, ...suggestedSize(view) });
+  requestAnimationFrame(fitView);
+}
+for (const b of $("views").querySelectorAll("[data-view]")) b.onclick = () => setView(b.dataset.view);
+$("led").addEventListener("dblclick", () => setView(view === "screen" ? "full" : "screen"));
+addEventListener("resize", () => requestAnimationFrame(fitView));
+// Refit once fonts (and emoji) finish loading, since they change the layout.
+document.fonts?.ready.then(() => requestAnimationFrame(fitView));
+
+// ---- Marquee.exe extras: always on top, and a one-time offer to pin to the taskbar -------
+for (const el of document.querySelectorAll(".host-only")) el.hidden = !host;
+let onTop = false;
+$("ontop").onclick = () => {
+  onTop = !onTop;
+  $("ontop").classList.toggle("on", onTop);
+  host?.postMessage({ type: "topmost", on: onTop });
+  toast(onTop ? "Marquee stays on top" : "Marquee no longer stays on top");
+};
+const pinMsg = (title, body) => { $("pinMsg").innerHTML = `<b>${title}</b>${body}`; };
+$("pinYes").onclick = () => {
+  host?.postMessage({ type: "pin", action: "show" });
+  pinMsg("Right-click the flashing Marquee icon on your taskbar", "Then choose <b style=\"display:inline\">Pin to taskbar</b>.");
+  $("pinYes").hidden = true;
+  $("pinNo").textContent = "Done";
+  $("pinNo").onclick = () => ($("pin").hidden = true);
+};
+$("pinNo").onclick = () => {
+  host?.postMessage({ type: "pin", action: "decline" });
+  $("pin").hidden = true;
+};
+host?.addEventListener("message", (e) => {
+  const m = e.data || {};
+  if (m.type === "init") {
+    setView(m.view || view, true);
+    onTop = !!m.topmost;
+    $("ontop").classList.toggle("on", onTop);
+    if (m.askPin) setTimeout(() => ($("pin").hidden = false), 1200);
+  } else if (m.type === "placed" && m.view === "compact" && view === "compact") {
+    // The window has its new width; the message view's height depends on it.
+    requestAnimationFrame(() => {
+      wrap.style.zoom = "1";
+      host.postMessage({ type: "fitHeight", h: Math.ceil(wrap.getBoundingClientRect().height) });
+      fitView();
+    });
+  } else if (m.type === "pinned") {
+    pinMsg("Pinned", "Marquee is on your taskbar now.");
+    $("pinYes").hidden = true;
+    $("pinNo").hidden = true;
+    setTimeout(() => ($("pin").hidden = true), 2500);
+  }
+});
+
+setView(view, true);
+host?.postMessage({ type: "hello" });
 render();
 drawPresets();
 poll();
 setInterval(poll, 5000);
-// Keeps the server running while this window is open, even when minimized.
-new EventSource("/api/alive");
+// Keeps the Node widget server running while this window is open, even when minimized.
+if (!host) new EventSource("/api/alive");
 $("text").focus();
+requestAnimationFrame(fitView);
 </script>
 </body>
 </html>

@@ -53,6 +53,14 @@ The widget is a small control panel with:
 - one-click presets, plus your own saved presets
 - color pickers and sliders
 
+The buttons at the top right switch between three views, and each one remembers its own window size and position:
+
+- all controls
+- just the screen and the message box
+- the screen alone, small enough to tuck in a corner (double-click it to go back)
+
+On Windows, the pin button keeps the window on top of others. The window always scales to fit, so there's no scrolling.
+
 **Send** (or Enter) pushes the look to the bar and brings Marquee to the front. **Live** streams every tweak as you make it. The layout adapts to any window size.
 
 You need the Marquee app installed on the bar (step 1 above).

@@ -159,26 +159,87 @@ sealed class Bar
     }
 }
 
+/// <summary>Window and app preferences, kept in %APPDATA%\Marquee\window.json.</summary>
+sealed class Prefs
+{
+    static readonly string FilePath = Path.Combine(Paths.Roaming, "window.json");
+
+    public string View { get; set; } = "full";
+    public Dictionary<string, int[]> Bounds { get; set; } = new();
+    public bool Maximized { get; set; }
+    public bool TopMost { get; set; }
+    public bool PinDeclined { get; set; }
+
+    public static Prefs Load()
+    {
+        try
+        {
+            if (File.Exists(FilePath)) return JsonSerializer.Deserialize<Prefs>(File.ReadAllText(FilePath)) ?? new Prefs();
+        }
+        catch { }
+        return new Prefs();
+    }
+
+    public void Save()
+    {
+        try
+        {
+            Directory.CreateDirectory(Paths.Roaming);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(this));
+        }
+        catch { }
+    }
+}
+
 sealed class MainForm : Form
 {
     const string Origin = "https://marquee.app/";
-    static readonly string BoundsFile = Path.Combine(Paths.Roaming, "window.json");
+    static readonly Color Back = Color.FromArgb(7, 8, 12);
 
-    readonly WebView2 web = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Color.FromArgb(14, 15, 20) };
+    readonly WebView2 web = new() { Dock = DockStyle.Fill, DefaultBackgroundColor = Back };
     readonly Bar bar;
+    readonly Prefs prefs = Prefs.Load();
+    readonly System.Windows.Forms.Timer pinWatch = new() { Interval = 1500 };
+    DateTime pinWatchUntil;
 
     public MainForm()
     {
         var app = JsonNode.Parse(Resource("web/app.json")!)!;
         bar = new Bar(app["id"]!.GetValue<string>());
         Text = "Marquee";
-        BackColor = Color.FromArgb(14, 15, 20);
+        BackColor = Back;
         using (var ico = Assembly.GetExecutingAssembly().GetManifestResourceStream("marquee.ico")) if (ico != null) Icon = new Icon(ico);
         StartPosition = FormStartPosition.Manual;
-        RestoreBounds_();
+        MinimumSize = new Size(LogicalToDeviceUnits(260), LogicalToDeviceUnits(130));
+        TopMost = prefs.TopMost;
+        PlaceFor(prefs.View, null);
+        if (prefs.Maximized && prefs.View == "full") WindowState = FormWindowState.Maximized;
         Controls.Add(web);
         Load += async (_, _) => await Start();
-        FormClosing += (_, _) => SaveBounds();
+        FormClosing += (_, _) =>
+        {
+            Remember();
+            prefs.Save();
+        };
+        pinWatch.Tick += (_, _) =>
+        {
+            if (Taskbar.IsPinned())
+            {
+                pinWatch.Stop();
+                Taskbar.Flash(Handle, false);
+                Post(new JsonObject { ["type"] = "pinned" });
+            }
+            else if (DateTime.Now > pinWatchUntil)
+            {
+                pinWatch.Stop();
+            }
+        };
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        Frame.Theme(Handle);
     }
 
     static byte[]? Resource(string name)
@@ -188,6 +249,116 @@ sealed class MainForm : Form
         using var m = new MemoryStream();
         s.CopyTo(m);
         return m.ToArray();
+    }
+
+    double Dpi => DeviceDpi / 96.0;
+
+    /// <summary>Saves where the window is for the current view.</summary>
+    void Remember()
+    {
+        prefs.Maximized = WindowState == FormWindowState.Maximized;
+        var r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+        if (r.Width > 0 && r.Height > 0) prefs.Bounds[prefs.View] = [r.X, r.Y, r.Width, r.Height];
+    }
+
+    /// <summary>
+    /// Moves the window to the saved place for a view, or sizes it to suit the view.
+    /// A suggested size is in CSS pixels; with none, the full view opens to fit the screen.
+    /// </summary>
+    void PlaceFor(string view, Size? suggested)
+    {
+        var area = (IsHandleCreated ? Screen.FromHandle(Handle) : Screen.PrimaryScreen)?.WorkingArea ?? new Rectangle(0, 0, 1280, 800);
+        if (prefs.Bounds.TryGetValue(view, out var b) && b.Length == 4)
+        {
+            var r = new Rectangle(b[0], b[1], b[2], b[3]);
+            if (r.Width >= MinimumSize.Width && r.Height >= MinimumSize.Height && Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(r)))
+            {
+                Bounds = r;
+                return;
+            }
+        }
+        var css = suggested ?? (view == "screen" ? new Size(560, 143) : view == "compact" ? new Size(760, 330) : new Size(1240, 800));
+        // Window size from the page size, plus the frame.
+        var frame = SizeFromClientSize(new Size(100, 100)) - new Size(100, 100);
+        var w = Math.Min((int)(css.Width * Dpi) + frame.Width, (int)(area.Width * 0.9));
+        var h = css.Height > 0 ? Math.Min((int)(css.Height * Dpi) + frame.Height, (int)(area.Height * 0.9)) : Height;
+        if (view == "full")
+        {
+            w = Math.Min((int)(1240 * Dpi), (int)(area.Width * 0.86));
+            h = Math.Min((int)(800 * Dpi), (int)(area.Height * 0.9));
+        }
+        var shown = IsHandleCreated && Visible;
+        var x = shown ? Left : area.X + (area.Width - w) / 2;
+        var y = shown ? Top : area.Y + (area.Height - h) / 2;
+        // Keep the whole window on the screen.
+        x = Math.Max(area.Left, Math.Min(x, area.Right - w));
+        y = Math.Max(area.Top, Math.Min(y, area.Bottom - h));
+        Bounds = new Rectangle(x, y, w, h);
+    }
+
+    void Post(JsonNode message) => web.CoreWebView2?.PostWebMessageAsJson(message.ToJsonString());
+
+    void OnMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        JsonObject m;
+        try
+        {
+            m = JsonNode.Parse(e.WebMessageAsJson) as JsonObject ?? new JsonObject();
+        }
+        catch
+        {
+            return;
+        }
+        int Css(string key) => m[key] is JsonValue v && v.TryGetValue<double>(out var d) ? (int)Math.Round(d) : 0;
+        switch (m["type"]?.ToString())
+        {
+            case "hello":
+                Post(new JsonObject
+                {
+                    ["type"] = "init",
+                    ["view"] = prefs.View,
+                    ["topmost"] = TopMost,
+                    ["askPin"] = !prefs.PinDeclined && !Taskbar.IsPinned(),
+                });
+                break;
+            case "view":
+                var view = m["view"]?.ToString() ?? "full";
+                if (view == prefs.View) break;
+                Remember();
+                prefs.View = view;
+                if (WindowState == FormWindowState.Maximized) WindowState = FormWindowState.Normal;
+                var fresh = !prefs.Bounds.ContainsKey(view);
+                PlaceFor(view, new Size(Css("w"), Css("h")));
+                prefs.Save();
+                // A view used for the first time can now size its height to its content.
+                if (fresh) BeginInvoke(() => Post(new JsonObject { ["type"] = "placed", ["view"] = view }));
+                break;
+            case "fitHeight":
+                // Only the first time a view is used; after that the window keeps the size you gave it.
+                if (WindowState != FormWindowState.Normal || prefs.Bounds.ContainsKey(prefs.View)) break;
+                var area = Screen.FromHandle(Handle).WorkingArea;
+                var h = Math.Min((int)(Css("h") * Dpi), (int)(area.Height * 0.9));
+                ClientSize = new Size(ClientSize.Width, h);
+                if (Bottom > area.Bottom) Top = Math.Max(area.Top, area.Bottom - Height);
+                break;
+            case "topmost":
+                TopMost = prefs.TopMost = m["on"]?.GetValueKind() == JsonValueKind.True;
+                prefs.Save();
+                break;
+            case "pin":
+                if (m["action"]?.ToString() == "decline")
+                {
+                    prefs.PinDeclined = true;
+                    prefs.Save();
+                }
+                else
+                {
+                    Taskbar.Flash(Handle, true);
+                    pinWatchUntil = DateTime.Now.AddMinutes(3);
+                    pinWatch.Start();
+                }
+                break;
+        }
     }
 
     async Task Start()
@@ -209,8 +380,10 @@ sealed class MainForm : Form
         core.Settings.IsStatusBarEnabled = false;
         core.Settings.AreDefaultContextMenusEnabled = Debugger.IsAttached;
         core.Settings.IsZoomControlEnabled = false;
+        core.Settings.IsPinchZoomEnabled = false;
         core.AddWebResourceRequestedFilter(Origin + "*", CoreWebView2WebResourceContext.All);
         core.WebResourceRequested += OnRequest;
+        core.WebMessageReceived += OnMessage;
         // Links open in the default browser, never inside the app.
         core.NewWindowRequested += (_, e) =>
         {
@@ -254,7 +427,6 @@ sealed class MainForm : Form
                             e.Response = Json(200, new JsonObject { ["ok"] = true });
                             break;
                         default:
-                            // /api/alive keeps the Node server running; there is nothing to keep alive here.
                             e.Response = core.Environment.CreateWebResourceResponse(null, 204, "No Content", "");
                             break;
                     }
@@ -287,42 +459,77 @@ sealed class MainForm : Form
             deferral.Complete();
         }
     }
+}
 
-    void RestoreBounds_()
+/// <summary>Colors the window frame to match the app (Windows 11; older Windows keeps its own frame).</summary>
+static class Frame
+{
+    [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    static int Bgr(Color c) => c.R | (c.G << 8) | (c.B << 16);
+
+    public static void Theme(IntPtr hwnd)
     {
-        var size = new Size(LogicalToDeviceUnits(760), LogicalToDeviceUnits(920));
+        int on = 1;
+        DwmSetWindowAttribute(hwnd, 20, ref on, sizeof(int)); // dark mode
+        int caption = Bgr(Color.FromArgb(7, 8, 12));
+        int text = Bgr(Color.FromArgb(233, 236, 244));
+        int border = Bgr(Color.FromArgb(35, 40, 56));
+        DwmSetWindowAttribute(hwnd, 35, ref caption, sizeof(int)); // caption color
+        DwmSetWindowAttribute(hwnd, 36, ref text, sizeof(int)); // title text color
+        DwmSetWindowAttribute(hwnd, 34, ref border, sizeof(int)); // border color
+    }
+}
+
+/// <summary>
+/// Windows doesn't let apps pin themselves, so Marquee flashes its taskbar button to show where to
+/// right-click, and watches the pinned-apps folder to see when that's done.
+/// </summary>
+static class Taskbar
+{
+    [StructLayout(LayoutKind.Sequential)]
+    struct FlashInfo
+    {
+        public uint Size;
+        public IntPtr Hwnd;
+        public uint Flags;
+        public uint Count;
+        public uint Timeout;
+    }
+
+    [DllImport("user32.dll")] static extern bool FlashWindowEx(ref FlashInfo info);
+
+    public static void Flash(IntPtr hwnd, bool on)
+    {
+        var info = new FlashInfo
+        {
+            Size = (uint)Marshal.SizeOf<FlashInfo>(),
+            Hwnd = hwnd,
+            Flags = on ? 2u : 0u, // FLASHW_TRAY, or FLASHW_STOP
+            Count = on ? 40u : 0u,
+        };
+        FlashWindowEx(ref info);
+    }
+
+    static readonly string PinnedDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        @"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar");
+
+    /// <summary>True when a taskbar pin points at Marquee.exe.</summary>
+    public static bool IsPinned()
+    {
         try
         {
-            if (File.Exists(BoundsFile) && JsonNode.Parse(File.ReadAllText(BoundsFile)) is JsonObject b)
+            var exe = Path.GetFileName(Environment.ProcessPath ?? "Marquee.exe").ToLowerInvariant();
+            var ascii = Encoding.ASCII.GetBytes(exe);
+            var wide = Encoding.Unicode.GetBytes(exe);
+            foreach (var lnk in Directory.EnumerateFiles(PinnedDir, "*.lnk"))
             {
-                var r = new Rectangle(b["x"]!.GetValue<int>(), b["y"]!.GetValue<int>(), b["w"]!.GetValue<int>(), b["h"]!.GetValue<int>());
-                // Only reuse a position that is still on a connected screen.
-                if (r.Width >= 360 && r.Height >= 300 && Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(r)))
-                {
-                    Bounds = r;
-                    if (b["max"]?.GetValue<bool>() == true) WindowState = FormWindowState.Maximized;
-                    return;
-                }
+                var bytes = File.ReadAllBytes(lnk);
+                for (var i = 0; i < bytes.Length; i++) if (bytes[i] is >= 65 and <= 90) bytes[i] += 32;
+                if (bytes.AsSpan().IndexOf(ascii) >= 0 || bytes.AsSpan().IndexOf(wide) >= 0) return true;
             }
         }
         catch { }
-        var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 1000);
-        size = new Size(Math.Min(size.Width, area.Width), Math.Min(size.Height, area.Height));
-        Bounds = new Rectangle(area.X + (area.Width - size.Width) / 2, area.Y + (area.Height - size.Height) / 2, size.Width, size.Height);
-    }
-
-    void SaveBounds()
-    {
-        try
-        {
-            var r = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
-            Directory.CreateDirectory(Paths.Roaming);
-            File.WriteAllText(BoundsFile, new JsonObject
-            {
-                ["x"] = r.X, ["y"] = r.Y, ["w"] = r.Width, ["h"] = r.Height,
-                ["max"] = WindowState == FormWindowState.Maximized,
-            }.ToJsonString());
-        }
-        catch { }
+        return false;
     }
 }
