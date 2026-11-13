@@ -13,7 +13,7 @@
   <img src="docs/marquee-fire.png" width="432" alt="Text over animated fire">
   <img src="docs/marquee-emoji.png" width="432" alt="SHIP IT with a rocket emoji over a warp-speed starfield">
   <img src="docs/marquee-matrix.png" width="432" alt="Typewriter text over matrix rain">
-  <img src="docs/marquee-love.png" width="432" alt="A heart and party emoji around FRIDAY over plasma">
+  <img src="docs/marquee-love.png" width="432" alt="A heart and party emoji around TGIF over plasma">
   <img src="docs/marquee-glitch.png" width="432" alt="Glitching text">
   <img src="docs/marquee-aurora.png" width="432" alt="Text over an aurora">
 </p>

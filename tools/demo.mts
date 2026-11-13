@@ -19,7 +19,7 @@ const DEMOS: Record<string, Partial<Look>> = {
   "marquee-aurora": { text: "Deep work", motion: "static", textFx: "solid", bg: "aurora", bgLevel: 70 },
   "marquee-emoji": { text: "SHIP IT :rocket:", motion: "static", textFx: "chrome", bg: "warp", bgColor: "#FF8C40", bgLevel: 70, speed: 8 },
   "marquee-pizza": { text: "LUNCH :pizza:", size: "big", motion: "static", textFx: "solid", color: "#FFE08A", bg: "sparkle", bgColor: "#FF8C40", bgLevel: 70 },
-  "marquee-love": { text: ":heart: FRIDAY :party:", motion: "static", textFx: "rainbow", bg: "plasma", bgLevel: 30 },
+  "marquee-love": { text: ":heart: TGIF :party:", motion: "static", textFx: "rainbow", bg: "plasma", bgLevel: 30 },
 };
 const ONLY = process.argv.slice(2);
 
