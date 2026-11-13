@@ -1,5 +1,5 @@
 # Push a tag like v1.0.0 to build Marquee and publish a release with the installable
-# .tgz package and a zip of the desktop widget attached.
+# .tgz package, the Windows widget app (Marquee.exe), and a zip of the desktop widget attached.
 name: Release
 
 on:
@@ -7,7 +7,25 @@ on:
     tags: ["v*.*.*"]
 
 jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Build Marquee.exe
+        run: dotnet publish widget/app/Marquee.csproj -c Release --self-contained false -o out
+      - uses: actions/upload-artifact@v5
+        with:
+          name: exe
+          path: out/Marquee.exe
+
   release:
+    needs: exe
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,10 +44,15 @@ jobs:
           npm run build -- --tgz-name "{id}-{version}.tgz"
           cp dist/*.tgz ../release/
 
+      - uses: actions/download-artifact@v5
+        with:
+          name: exe
+          path: release
+
       - name: Package the widget
         run: |
           # The widget serves the Marquee renderer straight from marquee/src, so ship both.
-          zip -r release/marquee-widget.zip widget marquee/src/fx.ts marquee/src/font.ts marquee/src/appmeta/manifest.json -x "widget/config.json"
+          zip -r release/marquee-widget.zip widget marquee/src/fx.ts marquee/src/font.ts marquee/src/emoji.ts marquee/src/appmeta/manifest.json -x "widget/config.json" "widget/app/*"
 
       - name: Publish the release
         env:

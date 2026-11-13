@@ -7,3 +7,6 @@ snaps/
 .DS_Store
 Thumbs.db
 widget/config.json
+widget/app/bin/
+widget/app/obj/
+widget/app/web/

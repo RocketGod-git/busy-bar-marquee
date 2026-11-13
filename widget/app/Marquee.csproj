@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Marquee</AssemblyName>
+    <RootNamespace>Marquee</RootNamespace>
+    <ApplicationIcon>..\marquee.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <Product>Marquee</Product>
+    <Company>RocketGod</Company>
+    <Description>Desktop control panel for the Marquee BUSY Bar app</Description>
+    <Version>1.1.0</Version>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <DebugType>none</DebugType>
+    <!-- The WebView2 package also brings its WPF control, which this WinForms app never loads. -->
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\marquee.ico" LogicalName="marquee.ico" />
+  </ItemGroup>
+
+  <!-- Builds the page and renderer modules from the widget and marquee/src, then embeds them. -->
+  <Target Name="GenWeb" BeforeTargets="BeforeBuild">
+    <Exec Command="node gen.mjs" WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <ItemGroup>
+      <WebFile Include="web\*" />
+      <EmbeddedResource Include="@(WebFile)" LogicalName="web/%(WebFile.Filename)%(WebFile.Extension)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

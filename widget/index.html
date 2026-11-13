@@ -53,6 +53,9 @@
   .chip:hover { border-color: #3a4260; background: var(--panel2); }
   .chip .x { color: var(--dim); font-weight: 400; }
   .chip.save { border-style: dashed; color: var(--dim); }
+  .emojis { display: flex; flex-wrap: wrap; gap: 2px; margin: -6px 0 10px; }
+  .emojis button { font-size: 18px; line-height: 1; background: none; border: 0; padding: 4px; border-radius: 8px; cursor: pointer; }
+  .emojis button:hover { background: var(--panel2); }
 
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
   .card h2 { margin: 0 0 10px; font-size: 11px; letter-spacing: .18em; color: var(--dim); font-weight: 700; text-transform: uppercase; }
@@ -110,6 +113,7 @@
   <input id="text" maxlength="200" placeholder="Type a message for the door..." autocomplete="off" spellcheck="false">
   <button class="send" id="send">SEND</button>
 </div>
+<div class="emojis" id="emojis"></div>
 <div class="chips" id="presets"></div>
 </section>
 
@@ -160,6 +164,7 @@
 
 <script type="module">
 import { Renderer, W, H } from "/fx.js";
+import { EMOJI, toCodes, fromCodes } from "/emoji.js";
 
 const BGS = [
   ["plasma", "Plasma"], ["fire", "Fire"], ["matrix", "Matrix"], ["warp", "Warp"], ["rainbow", "Rainbow"],
@@ -189,7 +194,7 @@ let state = { ...DEFAULTS };
 try { Object.assign(state, JSON.parse(localStorage.getItem("marquee.look") || "{}")); } catch {}
 
 const toRenderer = (s) => ({
-  text: s.text || " ", color: s.color, color2: s.color2, textFx: s.text_fx, motion: s.motion, size: s.size,
+  text: toCodes(s.text || "") || " ", color: s.color, color2: s.color2, textFx: s.text_fx, motion: s.motion, size: s.size,
   speed: s.speed, bg: s.bg, bgColor: s.bg_color, bgLevel: s.bg_level, outline: s.outline,
 });
 
@@ -296,6 +301,23 @@ for (const k of ["color", "color2", "bg_color"]) $(k).addEventListener("input", 
 for (const k of ["bg_level", "speed"]) $(k).addEventListener("input", (e) => change({ [k]: Number(e.target.value) }));
 for (const k of ["outline", "alert"]) $(k).addEventListener("change", (e) => change({ [k]: e.target.checked }));
 $("send").onclick = () => push(true);
+// Emoji picker: inserts at the cursor. The bar draws these as pixel art.
+for (const e of EMOJI) {
+  const b = document.createElement("button");
+  const ch = String.fromCodePoint(e.u[0]);
+  b.textContent = ch;
+  b.title = e.name;
+  b.onclick = () => {
+    const el = $("text");
+    const a = el.selectionStart ?? el.value.length;
+    const z = el.selectionEnd ?? a;
+    el.value = el.value.slice(0, a) + ch + el.value.slice(z);
+    el.focus();
+    el.setSelectionRange(a + ch.length, a + ch.length);
+    change({ text: el.value }, true);
+  };
+  $("emojis").append(b);
+}
 $("stop").onclick = async () => {
   const r = await fetch("/api/stop", { method: "POST" }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
   toast(r.ok ? "Marquee stopped" : `Couldn't stop: ${r.error}`, !r.ok);
@@ -353,7 +375,7 @@ async function push(launch) {
   try {
     const r = await fetch("/api/send", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ values: state, launch }),
+      body: JSON.stringify({ values: { ...state, text: toCodes(state.text) }, launch }),
     }).then((r) => r.json());
     if (!r.ok) throw new Error(r.error);
     if (launch) toast("Sent to BUSY Bar");
@@ -381,14 +403,14 @@ async function poll() {
     setStatus(s.connected);
     // On open, start from what the bar is showing now.
     if (first && s.connected && s.values && Object.keys(s.values).length) {
-      Object.assign(state, s.values);
+      Object.assign(state, s.values, { text: fromCodes(String(s.values.text ?? "")) });
       main.set(toRenderer(state));
       $("text").value = state.text;
       render();
     }
     first = false;
   } catch {
-    setStatus(false, "Widget server stopped");
+    setStatus(false, "Widget server stopped - close and reopen Marquee");
   }
 }
 
@@ -425,6 +447,8 @@ render();
 drawPresets();
 poll();
 setInterval(poll, 5000);
+// Keeps the server running while this window is open, even when minimized.
+new EventSource("/api/alive");
 $("text").focus();
 </script>
 </body>

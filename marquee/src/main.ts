@@ -2,17 +2,18 @@ import { device } from "@shared/device";
 import { loadValues } from "@shared/settings";
 import type { DisplayDrawParams } from "@busy-app/busy-lib";
 import manifest from "./appmeta/manifest.json";
-import { Renderer, type Look, type Bg, type Motion, type TextFx } from "./fx.ts";
+import { Renderer, Banner, type Look, type Bg, type Motion, type TextFx } from "./fx.ts";
 
 const APP = manifest.id;
 const TAG = "marquee:";
 /** 15 frames per second; the loop waits for each frame to land before sending the next. */
 const FRAME_MS = 66;
 const SETTINGS_MS = 2000;
+/** Visible width of the message line on the back screen. */
+const BACK_W = 146;
 // Device font names, kept out of `font:` literals: the CLI font-maps plugin would try to bundle
 // measurement maps for them (unused here) and breaks on Windows paths.
 const SMALL = "small";
-const XL = "extra_large";
 const TINY = "tiny";
 
 const BGS: Bg[] = ["plasma", "fire", "matrix", "warp", "rainbow", "aurora", "sparkle", "solid", "none"];
@@ -76,16 +77,56 @@ function main(): void {
 
   const apply = () => r.set({ ...base, ...override });
 
+  // The back screen's message line is drawn as a bitmap so it can show emoji. Long messages
+  // scroll like native text: a pause, a slide to the end, a longer pause, then back to the start.
+  let banner: Banner | null = null;
+  let bannerText = "";
+  let backOff = 0;
+  let backHold = 0;
+  let backAtEnd = false;
+  const backLine = (): Record<string, unknown> => ({
+    id: "k_b", type: "xpmbitmap", x: 2, y: 18, align: "top_left", display: "back",
+    data: banner ? banner.xpm(backOff, BACK_W) : "",
+  });
+  /** Advances the back scroll every other frame; true when the line moved. */
+  const backStep = (frame: number) => {
+    if (!banner || banner.width <= BACK_W || (frame & 1)) return false;
+    if (backHold > 0) {
+      backHold -= 1;
+      return false;
+    }
+    if (backAtEnd) {
+      backAtEnd = false;
+      backOff = 0;
+      backHold = 6;
+      return true;
+    }
+    backOff += 2;
+    if (backOff >= banner.width - BACK_W) {
+      backOff = banner.width - BACK_W;
+      backAtEnd = true;
+      backHold = 11;
+    }
+    return true;
+  };
+
   const drawBack = () => {
     const l = r.look;
     const label = (s: string) => s.toUpperCase();
+    if (!banner || l.text !== bannerText) {
+      bannerText = l.text;
+      banner = new Banner(l.text);
+      backOff = 0;
+      backHold = 6;
+      backAtEnd = false;
+    }
     const els = [
       { id: "k_t", type: "text", x: 2, y: 1, align: "top_left", text: "NOW SHOWING", font: SMALL, color: "#FFFFFFFF" },
       { id: "k_r", type: "rectangle", x: 2, y: 11, width: 146, height: 1, align: "top_left", fill: "gradient_h", fill_colors: ["#FFFFFFFF", "#FFFFFF00"], border_width: 0 },
-      { id: "k_m", type: "text", x: 2, y: 18, align: "top_left", text: l.text.replace(/[^\x20-\x7E]/g, "") || " ", font: XL, color: "#FFFFFFFF", width: 146, scroll_rate: 1500, scroll_start_delay: 800, scroll_repeat_delay: 1500 },
       { id: "k_s", type: "text", x: 2, y: 44, align: "top_left", text: `${label(l.bg)} / ${label(l.textFx)} / ${label(l.motion)}`, font: SMALL, color: "#FFFFFFA0" },
       { id: "k_h", type: "text", x: 2, y: 66, align: "top_left", text: "WHEEL: BG  OK: MOTION  START: FX", font: TINY, color: "#FFFFFF60" },
-    ].map((e) => ({ ...e, display: "back" }));
+    ].map((e) => ({ ...e, display: "back" }) as Record<string, unknown>);
+    els.push(backLine());
     void device.DisplayDraw({ application_name: APP, priority: 50, elements: els as unknown as DisplayDrawParams["elements"] }).catch(report);
   };
 
@@ -108,20 +149,24 @@ function main(): void {
     }
   };
 
+  let frameNo = 0;
   const frameLoop = async () => {
     while (alive) {
+      frameNo += 1;
       const t0 = Date.now();
-      const elements: Record<string, unknown>[] = [
-        { id: "fx", type: "xpmbitmap", x: 0, y: 0, align: "top_left", data: r.frame() },
-      ];
-      if (flash > 0) {
-        // A white flash that fades out over four frames when a new message arrives.
-        const alpha = ["30", "70", "B0", "F0"][flash - 1];
-        elements.push({ id: "flash", type: "rectangle", x: 0, y: 0, width: 72, height: 16, align: "top_left", fill: "solid", fill_colors: [`#FFFFFF${alpha}`], border_width: 0, z_index: 9 });
-        flash -= 1;
-        if (flash === 0) after.push("flash");
-      }
+      // Everything per frame stays inside the try: one failed frame must never end the loop.
       try {
+        const elements: Record<string, unknown>[] = [
+          { id: "fx", type: "xpmbitmap", x: 0, y: 0, align: "top_left", data: r.frame() },
+        ];
+        if (flash > 0) {
+          // A white flash that fades out over four frames when a new message arrives.
+          const alpha = ["30", "70", "B0", "F0"][flash - 1];
+          elements.push({ id: "flash", type: "rectangle", x: 0, y: 0, width: 72, height: 16, align: "top_left", fill: "solid", fill_colors: [`#FFFFFF${alpha}`], border_width: 0, z_index: 9 });
+          flash -= 1;
+          if (flash === 0) after.push("flash");
+        }
+        if (backStep(frameNo)) elements.push(backLine());
         await device.DisplayDraw({
           application_name: APP,
           priority: 50,

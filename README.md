@@ -16,6 +16,7 @@ An animated message board for the [BUSY Bar](https://busy.bar), with a desktop w
 - **Backgrounds:** Plasma, Fire, Matrix rain, Warp speed, Rainbow, Aurora, Sparkle, Solid, None.
 - **Text styles:** Solid, Chrome glint, Rainbow, Gradient, Fire.
 - **Motion:** Scroll, Wave, Still, Blink, Glitch, Typewriter.
+- **Emoji:** 26 full-color pixel-art emoji, including faces, hearts, thumbs up, fire, stars, coffee, pizza, and party. Type them in the widget or pick from its emoji row. In the bar's own settings, write them as codes like `:fire:` or `:heart:`.
 - **Options:** two text sizes, a black outline that keeps text readable over busy backgrounds, and a white flash plus LED blink when a new message arrives.
 
 Everything renders on the bar itself, so once a message is set it keeps running with your computer off.
@@ -44,14 +45,12 @@ The widget is a small control panel with:
 
 **Send** (or Enter) pushes the look to the bar and brings Marquee to the front. **Live** streams every tweak as you make it. The layout adapts to any window size.
 
-You need [Node.js 24](https://nodejs.org) and the Marquee app installed on the bar. Get the widget by downloading `marquee-widget.zip` from the release, or by cloning the repository.
+You need the Marquee app installed on the bar.
 
-- **Windows:** double-click `widget\Marquee.vbs`. To get a desktop shortcut, run `powershell -ExecutionPolicy Bypass -File widget\install-shortcut.ps1`.
-- **macOS or Linux:** run `node widget/server.mjs --open`.
+- **Windows:** download `Marquee.exe` from the [latest release](../../releases/latest) and run it. It's a regular desktop app that talks straight to the bar, so you can right-click its taskbar icon and choose **Pin to taskbar**. It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), and Windows offers to install it on first launch if it's missing. To build it yourself, run `powershell -ExecutionPolicy Bypass -File widget\app\install.ps1` (needs the .NET 10 SDK and Node.js 24). That also adds Start menu and desktop shortcuts.
+- **macOS or Linux:** download `marquee-widget.zip` from the release (or clone the repository), then run `node widget/server.mjs --open` with [Node.js 24](https://nodejs.org). It opens as an app window in Chrome or Edge, and the background server exits a minute after you close the window.
 
-It opens as an app window in Edge or Chrome, and the background server exits a minute after you close the window.
-
-**Over Wi-Fi:** the widget uses USB (10.0.4.20) by default. To use Wi-Fi instead, copy `widget/config.example.json` to `widget/config.json` and set `addr` to the bar's IP. Set `password` if **Password protection** is on in the bar's web interface. You can also use the `--addr` / `--password` flags or the `BUSY_ADDR` / `BUSY_PASSWORD` environment variables.
+**Over Wi-Fi:** the widget uses USB (10.0.4.20) by default. To use Wi-Fi instead, create a `config.json` with `addr` set to the bar's IP, and `password` if **Password protection** is on in the bar's web interface (see `widget/config.example.json`). On Windows, put it in `%APPDATA%\Marquee`. Elsewhere, put it in `widget/`, or use the `--addr` / `--password` flags. The `BUSY_ADDR` / `BUSY_PASSWORD` environment variables work everywhere.
 
 ## How it renders
 

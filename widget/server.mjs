@@ -1,5 +1,5 @@
 // Marquee desktop widget: a tiny local server for the control panel.
-// - Serves index.html and the Marquee renderer (marquee/src/fx.ts + font.ts, types stripped)
+// - Serves index.html and the Marquee renderer (marquee/src/fx.ts, font.ts, emoji.ts, types stripped)
 //   so the preview runs the exact code the BUSY Bar runs.
 // - Relays to the bar: reads and writes Marquee's settings and launches the app.
 // - Opens itself as an app window in Microsoft Edge with --open, and exits a minute after the
@@ -89,7 +89,10 @@ function clean(values) {
   return out;
 }
 
-let lastPing = Date.now();
+// Each open window holds an event stream; the server stays up while any stream is open.
+// Timer-based check-ins aren't enough: browsers slow them to once a minute in minimized windows.
+const windows = new Set();
+let lastSeen = Date.now();
 
 const server = createServer(async (req, res) => {
   const send = (code, type, body) => {
@@ -100,11 +103,23 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, URL_SELF);
     if (req.method === "GET" && url.pathname === "/") return send(200, "text/html; charset=utf-8", readFileSync(join(HERE, "index.html")));
-    if (req.method === "GET" && (url.pathname === "/fx.js" || url.pathname === "/font.js")) {
+    if (req.method === "GET" && ["/fx.js", "/font.js", "/emoji.js"].includes(url.pathname)) {
       return send(200, "text/javascript", module(url.pathname.slice(1, -3)));
     }
+    if (req.method === "GET" && url.pathname === "/api/alive") {
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-store", Connection: "keep-alive" });
+      res.write("retry: 2000\n\n");
+      windows.add(res);
+      const beat = setInterval(() => res.write(": beat\n\n"), 20000);
+      req.on("close", () => {
+        clearInterval(beat);
+        windows.delete(res);
+        lastSeen = Date.now();
+      });
+      return;
+    }
     if (req.method === "GET" && url.pathname === "/api/state") {
-      lastPing = Date.now();
+      lastSeen = Date.now();
       try {
         const doc = await bar(`/apps/settings?app_id=${APP_ID}`);
         return json(200, { connected: true, addr: ADDR, values: doc.values ?? {} });
@@ -147,7 +162,7 @@ server.listen(PORT, "127.0.0.1", () => {
   if (process.argv.includes("--open")) openWindow();
 });
 
-// The page checks in every few seconds; with no window open for a minute, shut down.
+// With no window open for a minute, shut down.
 setInterval(() => {
-  if (Date.now() - lastPing > 60000) process.exit(0);
+  if (windows.size === 0 && Date.now() - lastSeen > 60000) process.exit(0);
 }, 10000);

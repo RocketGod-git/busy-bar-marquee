@@ -12,6 +12,7 @@
 // - text and its outline are precomputed pixel lists, and only on-screen columns are visited;
 // - the framebuffer holds XPM character codes, so each output row is one fromCharCode call.
 import { normal, big, type PixelFont } from "./font.ts";
+import { CODE, emoji } from "./emoji.ts";
 
 export const W = 72;
 export const H = 16;
@@ -51,14 +52,18 @@ export const DEFAULT_LOOK: Look = {
   outline: true,
 };
 
-// Palette slots: 1-16 background ramp, 17-26 text ramp, 27 outline, 28 white.
-// The framebuffer stores XPM codes: EMPTY ('.') or 96 + slot ('a'...'|').
-const NCOL = 29;
+// Palette slots: 1-16 background ramp, 17-24 text ramp, 25 outline (black), 26 white,
+// 27-30 emoji yellow, orange, red, green.
+// The framebuffer stores XPM codes: EMPTY ('.') or 96 + slot ('a'...'~').
+const NCOL = 31;
 export const EMPTY = 46;
 const BG = 97; // code of background level 0; level n is BG + n
 const TX = 96 + 17;
-const OUTLINE = 96 + 27;
-const WHITE = 96 + 28;
+const NTX = 8;
+const OUTLINE = 96 + 25;
+const WHITE = 96 + 26;
+const ART: Record<string, number> = { k: OUTLINE, w: WHITE, y: 96 + 27, o: 96 + 28, r: 96 + 29, g: 96 + 30 };
+const ART_RGB = ["#000000", "#FFFFFF", "#FFD21E", "#FF8C00", "#FF2A3C", "#2EDB4B"];
 
 type RGB = [number, number, number];
 
@@ -107,6 +112,126 @@ function rnd(): number {
   return seed & 32767;
 }
 
+interface TextLayout {
+  width: number;
+  capTop: number;
+  capH: number;
+  /** (column, row) pairs in column order; rows are in font space. */
+  px: Int16Array<ArrayBuffer>;
+  /** Per pixel: a fixed emoji color code, or 0 for the text style. */
+  code: Uint8Array<ArrayBuffer>;
+  /** First pair index per column, plus the end. */
+  start: Int16Array<ArrayBuffer>;
+  /** Which character or emoji each column belongs to. */
+  colChar: Int16Array<ArrayBuffer>;
+  /** Per column, the lit rows as bit (row + 4). */
+  masks: number[];
+}
+
+/** Lays out text with :name: emoji codes. Emoji sit centered on the capitals. */
+function layoutText(s: string, font: PixelFont, caps: boolean): TextLayout {
+  const g = font.g;
+  let top = 16;
+  let bot = 0;
+  for (const m of g.H[1]) for (let y = 0; y < 16; y++) if ((m >> y) & 1) {
+    top = Math.min(top, y);
+    bot = Math.max(bot, y);
+  }
+  const capH = bot - top + 1;
+  const tp: number[] = [];
+  const tc: number[] = [];
+  const st: number[] = [];
+  const cc: number[] = [];
+  const masks: number[] = [];
+  let n = 0;
+  const glyphs = (part: string) => {
+    if (caps) part = part.toUpperCase(); // the big font is capitals only
+    for (let i = 0; i < part.length; i++, n++) {
+      const gl = g[part[i]] || g["?"];
+      for (let k = 0; k < gl[0]; k++) {
+        const m = gl[1][k] || 0;
+        st.push(tp.length);
+        for (let y = 0; y < 16; y++) if ((m >> y) & 1) {
+          tp.push(masks.length, y);
+          tc.push(0);
+        }
+        masks.push(m << 4);
+        cc.push(n);
+      }
+    }
+  };
+  CODE.lastIndex = 0;
+  let at0 = 0;
+  for (let m = CODE.exec(s); m; m = CODE.exec(s)) {
+    const e = emoji(m[1]);
+    if (!e) continue;
+    glyphs(s.slice(at0, m.index));
+    at0 = m.index + m[0].length;
+    // With a blank column after.
+    const y0 = top + ((capH - e.art.length) >> 1);
+    for (let x = 0; x <= e.art[0].length; x++) {
+      st.push(tp.length);
+      let mask = 0;
+      for (let y = 0; y < e.art.length; y++) {
+        const code = ART[e.art[y].charAt(x)];
+        if (!code) continue;
+        tp.push(masks.length, y0 + y);
+        tc.push(code);
+        mask |= 1 << (y0 + y + 4);
+      }
+      masks.push(mask);
+      cc.push(n);
+    }
+    n++;
+  }
+  glyphs(s.slice(at0));
+  st.push(tp.length);
+  return {
+    width: masks.length, capTop: top, capH,
+    px: new Int16Array(tp), code: new Uint8Array(tc), start: new Int16Array(st), colChar: new Int16Array(cc), masks,
+  };
+}
+
+/**
+ * The message as one line for the back screen, in the bar's extra-large font (the same font as
+ * "big"), with emoji. Rows match a native text element drawn at the same position.
+ */
+export class Banner {
+  readonly width: number;
+  readonly height = 16;
+  private buf: Uint8Array;
+  private header = "";
+  private shown = -1;
+
+  constructor(text: string) {
+    const t = layoutText(String(text || " ").replace(/[^\x20-\x7E]/g, ""), big, true);
+    this.width = Math.max(1, t.width);
+    this.buf = new Uint8Array(this.width * this.height).fill(EMPTY);
+    for (let i = 0, k = 0; k < t.px.length; i++, k += 2) {
+      const y = t.px[k + 1];
+      if (y >= 0 && y < this.height) this.buf[y * this.width + t.px[k]] = t.code[i] || WHITE;
+    }
+  }
+
+  /** A window `w` columns wide starting at column `off`, as XPM2. */
+  xpm(off: number, w: number): string {
+    w = Math.min(w, this.width);
+    off = Math.max(0, Math.min(off, this.width - w));
+    if (w !== this.shown) {
+      this.shown = w;
+      const lines = ["! XPM2", `${w} ${this.height} 7 1`, ". c none"];
+      for (let i = 0; i < ART_RGB.length; i++) lines.push(`${String.fromCharCode(OUTLINE + i)} c ${ART_RGB[i]}`);
+      this.header = lines.join("\n");
+    }
+    let out = this.header;
+    for (let y = 0; y < this.height; y++) {
+      const o = y * this.width + off;
+      out += "\n" + String.fromCharCode.apply(null, this.buf.subarray(o, o + w) as unknown as number[]);
+    }
+    return out;
+  }
+}
+
 export class Renderer {
   look: Look = DEFAULT_LOOK;
   /** Palette by slot (index 0 unused); background slots are before rotation. */
@@ -122,6 +247,7 @@ export class Renderer {
   // Text, precomputed per message, in column order: (column, row) pairs.
   private tpx = new Int16Array(0);
   private tStart = new Int16Array(1); // first pair index per text column
+  private tCode = new Uint8Array(0); // per text pixel: a fixed emoji color code, or 0 for text style
   private opx = new Int16Array(0); // outline pixels; columns offset by +1
   private oStart = new Int16Array(1);
   private colChar = new Int16Array(0);
@@ -149,60 +275,38 @@ export class Renderer {
     l.speed = Math.max(1, Math.min(10, Number(l.speed) || 5));
     l.bgLevel = Math.max(0, Math.min(100, Number(l.bgLevel) || 0));
     this.font = l.size === "big" ? big : normal;
-    let s = String(l.text || " ").replace(/[^\x20-\x7E]/g, "");
-    if (l.size === "big") s = s.toUpperCase(); // the big font is capitals only
-    this.layout(s);
+    const s = String(l.text || " ").replace(/[^\x20-\x7E]/g, "");
+    this.layout(s, l.size === "big");
     this.palette();
     this.makeField();
     if (prev.text !== l.text || prev.motion !== l.motion || prev.size !== l.size) this.t = 0;
   }
 
-  private layout(s: string): void {
-    const g = this.font.g;
-    const cols: number[] = [];
-    const cc: number[] = [];
-    for (let i = 0; i < s.length; i++) {
-      const [adv, c] = g[s[i]] || g["?"];
-      for (let k = 0; k < adv; k++) {
-        cols.push(c[k] || 0);
-        cc.push(i);
-      }
-    }
-    const tw = cols.length;
+  private layout(s: string, caps: boolean): void {
+    const t = layoutText(s, this.font, caps);
+    this.capH = t.capH;
+    this.yBase = ((H - t.capH) >> 1) - t.capTop;
+    const tw = t.width;
+    const masks = t.masks;
     this.textW = tw;
-    this.colChar = new Int16Array(cc);
-    // Text pixels, column by column.
-    const tp: number[] = [];
-    this.tStart = new Int16Array(tw + 1);
-    for (let x = 0; x < tw; x++) {
-      this.tStart[x] = tp.length;
-      for (let y = 0; y < 16; y++) if ((cols[x] >> y) & 1) tp.push(x, y);
-    }
-    this.tStart[tw] = tp.length;
-    this.tpx = new Int16Array(tp);
+    this.colChar = t.colChar;
+    this.tStart = t.start;
+    this.tpx = t.px;
+    this.tCode = t.code;
     // Outline: pixels next to text that are not text, in a space one column wider on each side.
-    const at = (x: number, y: number) => x >= 0 && x < tw && y >= 0 && y < 16 && ((cols[x] >> y) & 1) === 1;
+    const at = (x: number, y: number) => x >= 0 && x < tw && y >= -4 && y < 20 && ((masks[x] >> (y + 4)) & 1) === 1;
     const op: number[] = [];
     this.oStart = new Int16Array(tw + 3);
     for (let ox = 0; ox < tw + 2; ox++) {
       this.oStart[ox] = op.length;
       const x = ox - 1;
-      for (let y = -1; y < 17; y++) {
+      for (let y = -3; y < 19; y++) {
         if (at(x, y)) continue;
         if (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1)) op.push(ox, y);
       }
     }
     this.oStart[tw + 2] = op.length;
     this.opx = new Int16Array(op);
-    // Center the capitals vertically, measured from "H".
-    let top = 16;
-    let bot = 0;
-    for (const m of g.H[1]) for (let y = 0; y < 16; y++) if ((m >> y) & 1) {
-      top = Math.min(top, y);
-      bot = Math.max(bot, y);
-    }
-    this.capH = bot - top + 1;
-    this.yBase = ((H - this.capH) >> 1) - top;
   }
 
   private palette(): void {
@@ -242,23 +346,22 @@ export class Renderer {
     switch (l.textFx) {
       case "rainbow":
         tx = [];
-        for (let i = 0; i < 10; i++) tx.push(hue(i / 10));
+        for (let i = 0; i < NTX; i++) tx.push(hue(i / NTX));
         break;
       case "gradient":
-        tx = ramp([c1, c2], 10);
+        tx = ramp([c1, c2], NTX);
         break;
       case "fire":
-        tx = ramp([[255, 255, 200], [255, 220, 40], [255, 120, 0], [230, 20, 0]], 10);
+        tx = ramp([[255, 255, 200], [255, 220, 40], [255, 120, 0], [230, 20, 0]], NTX);
         break;
       case "chrome":
-        tx = ramp([c1, lerp(c1, [255, 255, 255], 0.6), [255, 255, 255]], 10);
+        tx = ramp([c1, lerp(c1, [255, 255, 255], 0.6), [255, 255, 255]], NTX);
         break;
       default:
-        tx = ramp([c1, c1], 10);
+        tx = ramp([c1, c1], NTX);
     }
-    for (let i = 0; i < 10; i++) this.pal[17 + i] = toHex(tx[i]);
-    this.pal[27] = "#000000";
-    this.pal[28] = "#FFFFFF";
+    for (let i = 0; i < NTX; i++) this.pal[17 + i] = toHex(tx[i]);
+    for (let i = 0; i < ART_RGB.length; i++) this.pal[25 + i] = ART_RGB[i];
 
     // One XPM header per palette rotation, built now so frames only pick one.
     const rest: string[] = [];
@@ -485,6 +588,7 @@ export class Renderer {
       }
     }
     const tp = this.tpx;
+    const tcode = this.tCode;
     const fx = l.textFx;
     const glint = (t * 3) % (W + 120);
     const gh = this.capH;
@@ -497,20 +601,29 @@ export class Renderer {
         x += rnd() & 1 ? -2 : 2;
         if (x < 0 || x >= W) continue;
       }
+      if (glitch && rnd() % 7 === 0) {
+        fb[y * W + x] = WHITE;
+        continue;
+      }
+      const fixed = tcode[k >> 1];
+      if (fixed) {
+        fb[y * W + x] = fixed;
+        continue;
+      }
       let c = 0;
-      if (fx === "rainbow") c = ((x + t) >> 2) % 10;
+      if (fx === "rainbow") c = ((x + t) >> 2) % NTX;
       else if (fx === "gradient") {
-        c = (((y - yb - 2) * 10) / gh) | 0;
-        c = c < 0 ? 0 : c > 9 ? 9 : c;
+        c = (((y - yb - 2) * NTX) / gh) | 0;
+        c = c < 0 ? 0 : c > NTX - 1 ? NTX - 1 : c;
       } else if (fx === "fire") {
         c = y - yb + ((SIN[(x * 40 + t * 25) & 255] + 127) >> 6) - 2;
-        c = c < 0 ? 0 : c > 9 ? 9 : c;
+        c = c < 0 ? 0 : c > NTX - 1 ? NTX - 1 : c;
       } else if (fx === "chrome") {
         let d = x + y * 2 - glint + 40;
         if (d < 0) d = -d;
-        c = d < 3 ? 9 : d < 6 ? 5 : 0;
+        c = d < 3 ? NTX - 1 : d < 6 ? NTX >> 1 : 0;
       }
-      fb[y * W + x] = glitch && rnd() % 7 === 0 ? WHITE : TX + c;
+      fb[y * W + x] = TX + c;
     }
     if (cursor >= 0 && cursor < W) {
       const top = yb + 2;
@@ -525,11 +638,15 @@ export class Renderer {
     this.t += 1;
   }
 
+  /** Row views into `fb`, made once so frames allocate no typed-array views. */
+  private rowViews: Uint8Array[] = [];
+
   /** The current frame as XPM2. */
   xpm(): string {
-    const rows = [this.headers[this.cycles ? this.rot : 0]];
-    for (let y = 0; y < H; y++) rows.push(String.fromCharCode.apply(null, this.fb.subarray(y * W, y * W + W) as unknown as number[]));
-    return rows.join("\n");
+    if (!this.rowViews.length) for (let y = 0; y < H; y++) this.rowViews.push(this.fb.subarray(y * W, y * W + W));
+    let out = this.headers[this.cycles ? this.rot : 0];
+    for (let y = 0; y < H; y++) out += "\n" + String.fromCharCode.apply(null, this.rowViews[y] as unknown as number[]);
+    return out;
   }
 
   /** Advances one frame and returns it as XPM2. */
