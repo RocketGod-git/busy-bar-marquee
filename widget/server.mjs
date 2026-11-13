@@ -2,6 +2,8 @@
 // - Serves index.html and the Marquee renderer (marquee/src/fx.ts, font.ts, emoji.ts, types stripped)
 //   so the preview runs the exact code the BUSY Bar runs.
 // - Relays to the bar: reads and writes Marquee's settings and launches the app.
+// - Installs or updates the Marquee app on the bar with one click, from marquee.tgz next to this
+//   file (the release zip has it) or the newest package in marquee/dist.
 // - Opens itself as an app window in Microsoft Edge with --open, and exits a minute after the
 //   window closes so nothing lingers.
 //
@@ -11,7 +13,7 @@
 // 10.0.4.20 and needs no password; over Wi-Fi use its IP and, if "Password protection" is on in
 // the bar's web UI, its password.
 import { createServer } from "node:http";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
@@ -19,7 +21,30 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, "..", "marquee", "src");
-const APP_ID = JSON.parse(readFileSync(join(SRC, "appmeta", "manifest.json"), "utf8")).id;
+const MANIFEST = JSON.parse(readFileSync(join(SRC, "appmeta", "manifest.json"), "utf8"));
+const APP_ID = MANIFEST.id;
+
+/** The bar app package to install, if this copy of the widget has one. */
+function packagePath() {
+  const here = join(HERE, "marquee.tgz");
+  if (existsSync(here)) return here;
+  const dist = join(SRC, "..", "dist");
+  if (!existsSync(dist)) return null;
+  const tgz = readdirSync(dist).filter((f) => f.endsWith(".tgz")).map((f) => join(dist, f));
+  tgz.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  return tgz[0] ?? null;
+}
+
+/** Compares dotted version numbers. */
+function compareVersions(a, b) {
+  const x = String(a).split(".").map(Number);
+  const y = String(b).split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return Math.sign(d);
+  }
+  return 0;
+}
 
 function option(flag, env, key, fallback) {
   const i = process.argv.indexOf(flag);
@@ -68,9 +93,9 @@ function module(name) {
   return stripTypeScriptTypes(ts, { mode: "strip" }).replace(/from "\.\/(\w+)\.ts"/g, 'from "./$1.js"');
 }
 
-async function bar(path, init) {
+async function bar(path, init, timeout = 4000) {
   const headers = { ...(init?.headers ?? {}), ...(PASSWORD ? { "X-API-Token": PASSWORD } : {}) };
-  const r = await fetch(`${BAR}${path}`, { ...init, headers, signal: AbortSignal.timeout(4000) });
+  const r = await fetch(`${BAR}${path}`, { ...init, headers, signal: AbortSignal.timeout(timeout) });
   const body = await r.text();
   if (!r.ok) throw new Error(`${r.status} ${body.slice(0, 200)}`);
   return body ? JSON.parse(body) : {};
@@ -120,12 +145,46 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/api/state") {
       lastSeen = Date.now();
+      let list;
       try {
-        const doc = await bar(`/apps/settings?app_id=${APP_ID}`);
-        return json(200, { connected: true, addr: ADDR, values: doc.values ?? {} });
+        list = await bar("/apps/list");
       } catch (err) {
         return json(200, { connected: false, addr: ADDR, error: String(err.message || err) });
       }
+      const installed = (list.apps ?? []).find((a) => a.id === APP_ID)?.version ?? null;
+      const pkg = packagePath();
+      // Offer an install when the bar doesn't have Marquee, or an update when this copy is newer.
+      const offer = !pkg ? null : !installed ? "install" : compareVersions(MANIFEST.version, installed) > 0 ? "update" : null;
+      let values = {};
+      if (installed) {
+        try {
+          values = (await bar(`/apps/settings?app_id=${APP_ID}`)).values ?? {};
+        } catch {}
+      }
+      return json(200, { connected: true, addr: ADDR, values, app: { installed, bundled: pkg ? MANIFEST.version : null, offer } });
+    }
+    if (req.method === "POST" && url.pathname === "/api/install") {
+      const pkg = packagePath();
+      if (!pkg) throw new Error("This copy of the widget doesn't include the bar app.");
+      // An update keeps the message and look that are on the bar now.
+      let kept = null;
+      try {
+        kept = await bar(`/apps/settings?app_id=${APP_ID}`);
+      } catch {}
+      const staged = await bar("/apps/stage", { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: readFileSync(pkg) }, 120000);
+      if (!staged.install_key) throw new Error(staged.error_code || "The BUSY Bar didn't accept the app.");
+      await bar(`/apps/install?install_key=${encodeURIComponent(staged.install_key)}`, { method: "POST" }, 120000);
+      if (kept?.values && Object.keys(kept.values).length) {
+        try {
+          const now = await bar(`/apps/settings?app_id=${APP_ID}`);
+          if (JSON.stringify(now.values) !== JSON.stringify(kept.values)) {
+            now.values = kept.values;
+            await bar(`/apps/settings?app_id=${APP_ID}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(now) });
+          }
+        } catch {}
+      }
+      await bar(`/apps/launch?app_id=${APP_ID}`, { method: "POST" }, 15000);
+      return json(200, { ok: true });
     }
     if (req.method === "POST" && url.pathname === "/api/send") {
       let raw = "";

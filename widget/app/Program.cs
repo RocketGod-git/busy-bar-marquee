@@ -286,8 +286,8 @@ sealed class MainForm : Form
         BackColor = Back;
         using (var ico = Assembly.GetExecutingAssembly().GetManifestResourceStream("marquee.ico")) if (ico != null) Icon = new Icon(ico);
         StartPosition = FormStartPosition.Manual;
-        MinimumSize = new Size(LogicalToDeviceUnits(260), LogicalToDeviceUnits(130));
         TopMost = prefs.TopMost;
+        ApplyChrome(prefs.View);
         PlaceFor(prefs.View, null);
         if (prefs.Maximized && prefs.View == "full") WindowState = FormWindowState.Maximized;
         Controls.Add(web);
@@ -316,6 +316,78 @@ sealed class MainForm : Form
     {
         base.OnHandleCreated(e);
         Frame.Theme(Handle);
+    }
+
+    /// <summary>True while the window has no frame: the screen-only view, where the bezel is the window.</summary>
+    bool Bare => FormBorderStyle == FormBorderStyle.None;
+
+    /// <summary>The screen-only view drops the window frame; the other views keep it.</summary>
+    void ApplyChrome(string view)
+    {
+        var bare = view == "screen";
+        // A thin margin around the page is where the window's edges can be grabbed to resize it.
+        Padding = bare ? new Padding(LogicalToDeviceUnits(3)) : Padding.Empty;
+        BackColor = bare ? Color.FromArgb(27, 31, 42) : Back;
+        MinimumSize = bare ? new Size(LogicalToDeviceUnits(200), LogicalToDeviceUnits(52)) : new Size(LogicalToDeviceUnits(260), LogicalToDeviceUnits(130));
+        if (Bare != bare) FormBorderStyle = bare ? FormBorderStyle.None : FormBorderStyle.Sizable;
+        if (IsHandleCreated) Frame.Theme(Handle);
+    }
+
+    const int WM_NCHITTEST = 0x84, WM_NCLBUTTONDOWN = 0xA1, WM_NCLBUTTONDBLCLK = 0xA3, WM_SIZING = 0x214;
+
+    [DllImport("user32.dll")] static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct Rect
+    {
+        public int Left, Top, Right, Bottom;
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (Bare && WindowState == FormWindowState.Normal)
+        {
+            switch (m.Msg)
+            {
+                case WM_NCHITTEST:
+                {
+                    // Resize from the window's edges, which the page leaves uncovered.
+                    var p = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
+                    var g = LogicalToDeviceUnits(6);
+                    bool l = p.X < g, r = p.X >= ClientSize.Width - g, t = p.Y < g, b = p.Y >= ClientSize.Height - g;
+                    var hit = t && l ? 13 : t && r ? 14 : b && l ? 16 : b && r ? 17 : l ? 10 : r ? 11 : t ? 12 : b ? 15 : 2;
+                    m.Result = hit;
+                    return;
+                }
+                case WM_NCLBUTTONDBLCLK:
+                    // A double-click on the bezel goes back to all controls, instead of maximizing.
+                    Post(new JsonObject { ["type"] = "dblclick" });
+                    m.Result = IntPtr.Zero;
+                    return;
+                case WM_SIZING:
+                {
+                    // Keep the sign's proportions while resizing.
+                    var r = Marshal.PtrToStructure<Rect>(m.LParam);
+                    var edge = (int)m.WParam;
+                    var extra = Padding.Horizontal + LogicalToDeviceUnits(12);
+                    if (edge == 3 || edge == 6)
+                    {
+                        r.Right = r.Left + (int)Math.Round((r.Bottom - r.Top - extra) * 4.5) + extra;
+                    }
+                    else
+                    {
+                        var h = (int)Math.Round((r.Right - r.Left - extra) / 4.5) + extra;
+                        if (edge == 4 || edge == 5) r.Top = r.Bottom - h;
+                        else r.Bottom = r.Top + h;
+                    }
+                    Marshal.StructureToPtr(r, m.LParam, false);
+                    m.Result = 1;
+                    return;
+                }
+            }
+        }
+        base.WndProc(ref m);
     }
 
     static byte[]? Resource(string name)
@@ -353,9 +425,10 @@ sealed class MainForm : Form
                 return;
             }
         }
-        var css = suggested ?? (view == "screen" ? new Size(560, 143) : view == "compact" ? new Size(760, 330) : new Size(1240, 800));
+        var css = suggested ?? (view == "screen" ? new Size(560, 134) : view == "compact" ? new Size(760, 330) : new Size(1240, 800));
         // Window size from the page size, plus the frame.
         var frame = SizeFromClientSize(new Size(100, 100)) - new Size(100, 100);
+        frame += new Size(Padding.Horizontal, Padding.Vertical);
         var w = Math.Min((int)(css.Width * Dpi) + frame.Width, (int)(area.Width * 0.9));
         var h = css.Height > 0 ? Math.Min((int)(css.Height * Dpi) + frame.Height, (int)(area.Height * 0.9)) : Height;
         if (view == "full")
@@ -404,6 +477,7 @@ sealed class MainForm : Form
                 prefs.View = view;
                 if (WindowState == FormWindowState.Maximized) WindowState = FormWindowState.Normal;
                 var fresh = !prefs.Bounds.ContainsKey(view);
+                ApplyChrome(view);
                 PlaceFor(view, new Size(Css("w"), Css("h")));
                 prefs.Save();
                 // A view used for the first time can now size its height to its content.
@@ -416,6 +490,20 @@ sealed class MainForm : Form
                 var h = Math.Min((int)(Css("h") * Dpi), (int)(area.Height * 0.9));
                 ClientSize = new Size(ClientSize.Width, h);
                 if (Bottom > area.Bottom) Top = Math.Max(area.Top, area.Bottom - Height);
+                break;
+            case "drag":
+                // The bezel is the window's handle when it has no frame.
+                if (Bare)
+                {
+                    ReleaseCapture();
+                    SendMessage(Handle, WM_NCLBUTTONDOWN, 2, IntPtr.Zero);
+                }
+                break;
+            case "minimize":
+                WindowState = FormWindowState.Minimized;
+                break;
+            case "close":
+                Close();
                 break;
             case "topmost":
                 TopMost = prefs.TopMost = m["on"]?.GetValueKind() == JsonValueKind.True;

@@ -70,7 +70,9 @@ jobs:
 
       - name: Package the widget
         run: |
-          # The widget serves the Marquee renderer straight from marquee/src, so ship both.
+          # The widget serves the Marquee renderer straight from marquee/src, so ship both, plus the
+          # bar app so the widget can install it with one click.
+          cp release/*.tgz widget/marquee.tgz
           zip -r release/marquee-widget-mac-linux.zip widget marquee/src/fx.ts marquee/src/font.ts marquee/src/emoji.ts marquee/src/appmeta/manifest.json -x "widget/config.json" "widget/app/*"
 
       - name: Publish the release

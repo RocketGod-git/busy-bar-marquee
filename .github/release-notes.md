@@ -16,4 +16,4 @@ Then type a message, tap an emoji, pick a look, and click **Send**. Once it's on
 
 **Already have Marquee on your bar?** Just open the new Marquee.exe. If your bar has an older version, it offers a one-click update and keeps your current message.
 
-**Mac or Linux?** Download `app.rocketgod.marquee-VERSION.tgz` and `marquee-widget-mac-linux.zip` below, then follow the [Mac or Linux steps](https://github.com/RocketGod-git/busy-bar-marquee#mac-or-linux).
+**Mac or Linux?** Download `marquee-widget-mac-linux.zip` below. On a Mac, double-click `widget/Marquee.command` inside it (needs [Node.js](https://nodejs.org)), and it offers the same one-click install. See the [Mac or Linux steps](https://github.com/RocketGod-git/busy-bar-marquee#mac-or-linux).

@@ -33,11 +33,15 @@
   body.v-compact .emojis { margin-bottom: 0; }
   /* Screen view: only the LED screen, with the view buttons on hover. */
   body.v-screen { overflow: hidden; }
-  body.v-screen .wrap { padding: 6px; height: 100vh; display: flex; align-items: center; justify-content: center; }
-  body.v-screen .layout, body.v-screen .stage { width: 100%; }
+  body.v-screen .wrap { padding: 0; height: 100vh; }
+  body.v-screen .layout, body.v-screen .stage { width: 100%; height: 100%; }
   body.v-screen .compose, body.v-screen .emojis, body.v-screen #presets, body.v-screen .controls, body.v-screen .bezel .tag { display: none; }
-  body.v-screen .bezel { padding: 6px; border-radius: 12px; }
-  body.v-screen .bezel canvas { width: min(100%, calc((100vh - 26px) * 4.5)); border-radius: 6px; }
+  /* In Marquee.exe the bezel is the whole window: no frame, drag it anywhere to move it. */
+  body.v-screen .bezel { height: 100%; padding: 6px; border-radius: 0; border: 0; display: flex; align-items: center; justify-content: center; }
+  body.hosted.v-screen .bezel { cursor: grab; }
+  body.v-screen .bezel canvas { width: min(100%, calc((100vh - 12px) * 4.5)); border-radius: 5px; }
+  .screen-only { display: none !important; }
+  body.hosted.v-screen .screen-only { display: grid !important; }
   body.v-screen header { position: fixed; top: 8px; right: 10px; z-index: 5; margin: 0; opacity: 0; transition: opacity .15s; }
   body.v-screen:hover header { opacity: 1; }
   body.v-screen .brand, body.v-screen .status { display: none; }
@@ -49,6 +53,7 @@
   .views button.on { color: var(--text); background: linear-gradient(135deg, #ff2a8a44, #00e5ff44); }
   .views svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
   .views .sep { width: 1px; margin: 4px 3px; background: var(--line); }
+  .views [hidden] { display: none !important; }
   .pin { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 20; display: flex; align-items: center; gap: 14px; width: min(560px, calc(100vw - 24px)); padding: 12px 14px; border-radius: 14px; background: #161a26; border: 1px solid #2f3750; box-shadow: 0 18px 50px -12px #000; }
   .pin[hidden], .setup[hidden] { display: none; }
   .setup { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; padding: 14px 16px; border-radius: 14px; background: linear-gradient(135deg, #ff2a8a1a, #00e5ff1a); border: 1px solid #00e5ff55; }
@@ -138,6 +143,8 @@
       <button data-view="screen" title="Screen only"><svg viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="13" height="7" rx="1.5"/></svg></button>
       <span class="sep host-only"></span>
       <button id="ontop" class="host-only" title="Keep on top of other windows"><svg viewBox="0 0 16 16"><path d="M10 1.8 14.2 6l-2 .6-2.6 2.6.3 3.2-1.3 1.3L5.8 10.9 2 14.7M5.1 3.5l7.4 7.4M9.5 1.5 6 5l-2.7.2L2 6.5"/></svg></button>
+      <button id="minimize" class="host-only screen-only" title="Minimize"><svg viewBox="0 0 16 16"><path d="M3.5 8.5h9"/></svg></button>
+      <button id="close" class="host-only screen-only" title="Close"><svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"/></svg></button>
     </div>
   </div>
 </header>
@@ -595,7 +602,7 @@ function fitView() {
 
 /** Natural size of a view in CSS pixels, so the window can open at a size that suits it. */
 function suggestedSize(v) {
-  if (v === "screen") return { w: 560, h: Math.round((560 - 24) / 4.5 + 24) };
+  if (v === "screen") return { w: 560, h: Math.round((560 - 12) / 4.5 + 12) };
   if (v === "compact") return { w: 760, h: 0 };
   return { w: 1240, h: 800 };
 }
@@ -609,13 +616,37 @@ function setView(v, fromHost = false) {
   requestAnimationFrame(fitView);
 }
 for (const b of $("views").querySelectorAll("[data-view]")) b.onclick = () => setView(b.dataset.view);
-$("led").addEventListener("dblclick", () => setView(view === "screen" ? "full" : "screen"));
+const bezel = document.querySelector(".bezel");
+bezel.addEventListener("dblclick", (e) => {
+  if (!e.target.closest("header")) setView(view === "screen" ? "full" : "screen");
+});
+// With no window frame, dragging the bezel moves the window. The move starts only once the mouse
+// travels a few pixels, so clicks and double-clicks still reach the page.
+let press = null;
+bezel.addEventListener("mousedown", (e) => {
+  press = host && view === "screen" && e.button === 0 && !e.target.closest("header") ? { x: e.screenX, y: e.screenY } : null;
+});
+addEventListener("mousemove", (e) => {
+  if (!press) return;
+  if (!(e.buttons & 1)) {
+    press = null;
+    return;
+  }
+  if (Math.abs(e.screenX - press.x) + Math.abs(e.screenY - press.y) > 3) {
+    press = null;
+    host.postMessage({ type: "drag" });
+  }
+});
+addEventListener("mouseup", () => (press = null));
+$("minimize").onclick = () => host?.postMessage({ type: "minimize" });
+$("close").onclick = () => host?.postMessage({ type: "close" });
 addEventListener("resize", () => requestAnimationFrame(fitView));
 // Refit once fonts (and emoji) finish loading, since they change the layout.
 document.fonts?.ready.then(() => requestAnimationFrame(fitView));
 
 // ---- Marquee.exe extras: always on top, and a one-time offer to pin to the taskbar -------
 for (const el of document.querySelectorAll(".host-only")) el.hidden = !host;
+if (host) document.body.classList.add("hosted");
 let onTop = false;
 $("ontop").onclick = () => {
   onTop = !onTop;
@@ -649,6 +680,8 @@ host?.addEventListener("message", (e) => {
       host.postMessage({ type: "fitHeight", h: Math.ceil(wrap.getBoundingClientRect().height) });
       fitView();
     });
+  } else if (m.type === "dblclick") {
+    setView("full");
   } else if (m.type === "pinned") {
     pinMsg("Pinned", "Marquee is on your taskbar now.");
     $("pinYes").hidden = true;

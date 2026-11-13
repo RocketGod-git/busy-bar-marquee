@@ -43,7 +43,7 @@ Use the buttons at the top right to switch views. Each view remembers its own wi
 <table>
   <tr>
     <td align="center" width="50%"><img src="docs/app-compact.png" alt="The screen and message box view"><br><b>Screen and message</b><br>Just the preview, the message box, and emoji.</td>
-    <td align="center" width="50%"><img src="docs/app-screen.png" alt="The screen-only view"><br><b>Screen only</b><br>A small live preview to keep in a corner. Double-click it to go back.</td>
+    <td align="center" width="50%"><img src="docs/app-screen.png" alt="The screen-only view"><br><b>Screen only</b><br>Just the glowing sign, no window frame. Drag it anywhere, pull an edge to resize it, and hover for the controls. Double-click it to go back.</td>
   </tr>
 </table>
 
@@ -65,10 +65,12 @@ The pin button next to the views keeps Marquee on top of your other windows.
 
 ## Mac or Linux
 
-1. Download `app.rocketgod.marquee-<version>.tgz` from the [latest release](../../releases/latest).
-2. Plug in the BUSY Bar with its USB cable, and open <http://10.0.4.20> in your browser.
-3. Click **Apps** → **+ Add app**. Pick the file, click **Upload**, then **Install app**.
-4. Download `marquee-widget-mac-linux.zip` from the release, unzip it, and run `node widget/server.mjs --open` with [Node.js 24](https://nodejs.org). It opens the same control panel as an app window in Chrome or Edge.
+1. Install [Node.js 24](https://nodejs.org) if you don't have it.
+2. Download [marquee-widget-mac-linux.zip](https://github.com/RocketGod-git/busy-bar-marquee/releases/latest/download/marquee-widget-mac-linux.zip) and unzip it.
+3. Plug in your BUSY Bar with its USB cable.
+4. **Mac:** double-click `widget/Marquee.command`. If macOS says it can't check the file, right-click it, choose **Open**, then **Open** again (on newer macOS, go to **System Settings → Privacy & Security** and click **Open Anyway**).
+   **Linux:** run `node widget/server.mjs --open`.
+5. Click **Install on my bar**, just like on Windows. Marquee opens in a Chrome or Edge app window.
 
 ## Over Wi-Fi
 
