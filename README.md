@@ -21,12 +21,22 @@ An animated message board for the [BUSY Bar](https://busy.bar), with a desktop w
 
 Everything renders on the bar itself, so once a message is set it keeps running with your computer off.
 
-## Install
+## Get started
 
-1. Download `app.rocketgod.marquee-<version>.tgz` from the [latest release](../../releases/latest).
-2. Connect the BUSY Bar over USB and open <http://10.0.4.20>.
-3. Go to **Apps** → **+ Add app**. Pick the `.tgz` file, click **Upload**, then **Install app**.
-4. Start **Marquee** from the bar (mode selector → **Apps**) or from the web interface.
+Everything you need is on the **[latest release](../../releases/latest)** page.
+
+**1. Put Marquee on your BUSY Bar**
+
+1. Download `app.rocketgod.marquee-<version>.tgz` from the release.
+2. Plug the BUSY Bar into your computer with its USB cable, and open <http://10.0.4.20> in your browser.
+3. Click **Apps** → **+ Add app**. Pick the file, click **Upload**, then **Install app**.
+
+**2. Control it from your computer**
+
+- **Windows:** download `Marquee.exe` from the release and double-click it. There's nothing else to install. If Windows says it "protected your PC," click **More info** → **Run anyway** (the app is new, so Windows doesn't recognize it yet). Right-click its taskbar icon and choose **Pin to taskbar** to keep it handy.
+- **Mac or Linux:** see [Desktop widget](#desktop-widget) below.
+
+Type a message, pick a look, and click **Send**. You can also start **Marquee** from the bar itself (mode selector → **Apps**).
 
 **At the bar:** scroll wheel = cycle backgrounds · OK = cycle motion · Start = cycle text style · Back = quit.
 
@@ -45,10 +55,10 @@ The widget is a small control panel with:
 
 **Send** (or Enter) pushes the look to the bar and brings Marquee to the front. **Live** streams every tweak as you make it. The layout adapts to any window size.
 
-You need the Marquee app installed on the bar.
+You need the Marquee app installed on the bar (step 1 above).
 
-- **Windows:** download `Marquee.exe` from the [latest release](../../releases/latest) and run it. It's a regular desktop app that talks straight to the bar, so you can right-click its taskbar icon and choose **Pin to taskbar**. It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), and Windows offers to install it on first launch if it's missing. To build it yourself, run `powershell -ExecutionPolicy Bypass -File widget\app\install.ps1` (needs the .NET 10 SDK and Node.js 24). That also adds Start menu and desktop shortcuts.
-- **macOS or Linux:** download `marquee-widget.zip` from the release (or clone the repository), then run `node widget/server.mjs --open` with [Node.js 24](https://nodejs.org). It opens as an app window in Chrome or Edge, and the background server exits a minute after you close the window.
+- **Windows:** download `Marquee.exe` from the [latest release](../../releases/latest) and run it. It's a regular desktop app that talks straight to the bar, with nothing else to install. To build it yourself, run `powershell -ExecutionPolicy Bypass -File widget\app\install.ps1` (needs the .NET 10 SDK and Node.js 24). That also adds Start menu and desktop shortcuts.
+- **macOS or Linux:** download `marquee-widget-mac-linux.zip` from the release (or clone the repository), then run `node widget/server.mjs --open` with [Node.js 24](https://nodejs.org). It opens as an app window in Chrome or Edge, and the background server exits a minute after you close the window.
 
 **Over Wi-Fi:** the widget uses USB (10.0.4.20) by default. To use Wi-Fi instead, create a `config.json` with `addr` set to the bar's IP, and `password` if **Password protection** is on in the bar's web interface (see `widget/config.example.json`). On Windows, put it in `%APPDATA%\Marquee`. Elsewhere, put it in `widget/`, or use the `--addr` / `--password` flags. The `BUSY_ADDR` / `BUSY_PASSWORD` environment variables work everywhere.
 
@@ -91,7 +101,7 @@ Developer tools in `tools/`:
 
 `marquee/preview.mts` draws looks straight onto a connected bar from your computer. All of these honor `BUSY_ADDR`.
 
-Pushing a tag like `v1.0.0` builds the app and publishes a GitHub release with the `.tgz` file and the widget zip.
+Pushing a tag like `v1.0.0` builds the app and publishes a GitHub release with the `.tgz` file, `Marquee.exe`, and the Mac/Linux widget zip. The release page opens with the install steps from `.github/release-notes.md`, followed by the tag's message as "What's new".
 
 ## Credits
 
