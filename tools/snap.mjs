@@ -1,5 +1,6 @@
 // Captures the BUSY Bar front and back screens into upscaled PNGs.
 // Usage: node tools/snap.mjs [outPrefix] [scale]
+// Scale 1 saves the screens at their real size (72x16 and 160x80), as the Apps Catalog wants.
 import { deflateSync } from "node:zlib";
 import { writeFileSync } from "node:fs";
 
@@ -38,6 +39,11 @@ function png(w, h, rgb) {
 }
 // LED-style upscale: each pixel becomes a dot with a dark gap, like the real matrix.
 function upscale(w, h, px, s) {
+  if (s === 1) {
+    const out = Buffer.alloc(w * h * 3);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) out.set(px(x, y), (y * w + x) * 3);
+    return png(w, h, out);
+  }
   const W = w * s, H = h * s, out = Buffer.alloc(W * H * 3, 8);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const [r, g, b] = px(x, y);
@@ -64,5 +70,5 @@ const bw = 160, bh = (back.length * 2) / bw;
 writeFileSync(`${prefix}-back.png`, upscale(bw, bh, (x, y) => {
   const i = y * bw + x, byte = back[i >> 1];
   const v = (i & 1 ? byte >> 4 : byte & 0x0f) * 17; return [v, v, v];
-}, 4));
+}, SCALE === 1 ? 1 : 4));
 console.log(`saved ${prefix}-front.png and ${prefix}-back.png (back ${bw}x${bh})`);

@@ -13,7 +13,7 @@
     <Product>Marquee</Product>
     <Company>RocketGod</Company>
     <Description>Desktop control panel for the Marquee BUSY Bar app</Description>
-    <Version>1.1.3</Version>
+    <Version>1.2.0</Version>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>

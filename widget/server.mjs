@@ -23,6 +23,17 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, "..", "marquee", "src");
 const MANIFEST = JSON.parse(readFileSync(join(SRC, "appmeta", "manifest.json"), "utf8"));
 const APP_ID = MANIFEST.id;
+/** Earlier ids of Marquee. An update moves the message over and removes the old app. */
+const OLD_IDS = ["app.rocketgod.marquee"];
+const settingsPath = (id) => `/apps/settings?app_id=${encodeURIComponent(id)}`;
+
+/** Marquee's apps on the bar: this id's version, and any old ids still installed. */
+async function installedApps() {
+  const apps = (await bar("/apps/list")).apps ?? [];
+  const mine = apps.find((a) => a.id === APP_ID)?.version ?? null;
+  const old = apps.filter((a) => OLD_IDS.includes(a.id)).map((a) => ({ id: a.id, version: a.version }));
+  return { mine, old };
+}
 
 /** The bar app package to install, if this copy of the widget has one. */
 function packagePath() {
@@ -145,20 +156,23 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/api/state") {
       lastSeen = Date.now();
-      let list;
+      let found;
       try {
-        list = await bar("/apps/list");
+        found = await installedApps();
       } catch (err) {
         return json(200, { connected: false, addr: ADDR, error: String(err.message || err) });
       }
-      const installed = (list.apps ?? []).find((a) => a.id === APP_ID)?.version ?? null;
+      const { mine, old } = found;
+      const installed = mine ?? old[0]?.version ?? null;
       const pkg = packagePath();
-      // Offer an install when the bar doesn't have Marquee, or an update when this copy is newer.
-      const offer = !pkg ? null : !installed ? "install" : compareVersions(MANIFEST.version, installed) > 0 ? "update" : null;
+      // Offer an install when the bar doesn't have Marquee, or an update when this copy is newer
+      // or the bar still has Marquee under an old id.
+      const offer = !pkg ? null : !installed ? "install" : !mine || compareVersions(MANIFEST.version, mine) > 0 ? "update" : null;
+      const source = mine ? APP_ID : old[0]?.id;
       let values = {};
-      if (installed) {
+      if (source) {
         try {
-          values = (await bar(`/apps/settings?app_id=${APP_ID}`)).values ?? {};
+          values = (await bar(settingsPath(source))).values ?? {};
         } catch {}
       }
       return json(200, { connected: true, addr: ADDR, values, app: { installed, bundled: pkg ? MANIFEST.version : null, offer } });
@@ -166,21 +180,30 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/install") {
       const pkg = packagePath();
       if (!pkg) throw new Error("This copy of the widget doesn't include the bar app.");
-      // An update keeps the message and look that are on the bar now.
+      const { mine, old } = await installedApps();
+      // An update keeps the message and look that are on the bar now, even from an old id.
+      const source = mine ? APP_ID : old[0]?.id;
       let kept = null;
-      try {
-        kept = await bar(`/apps/settings?app_id=${APP_ID}`);
-      } catch {}
+      if (source) {
+        try {
+          kept = (await bar(settingsPath(source))).values ?? null;
+        } catch {}
+      }
       const staged = await bar("/apps/stage", { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: readFileSync(pkg) }, 120000);
       if (!staged.install_key) throw new Error(staged.error_code || "The BUSY Bar didn't accept the app.");
       await bar(`/apps/install?install_key=${encodeURIComponent(staged.install_key)}`, { method: "POST" }, 120000);
-      if (kept?.values && Object.keys(kept.values).length) {
+      if (kept && Object.keys(kept).length) {
         try {
-          const now = await bar(`/apps/settings?app_id=${APP_ID}`);
-          if (JSON.stringify(now.values) !== JSON.stringify(kept.values)) {
-            now.values = kept.values;
-            await bar(`/apps/settings?app_id=${APP_ID}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(now) });
+          const now = await bar(settingsPath(APP_ID));
+          if (JSON.stringify(now.values) !== JSON.stringify(kept)) {
+            now.values = kept;
+            await bar(settingsPath(APP_ID), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(now) });
           }
+        } catch {}
+      }
+      for (const o of old) {
+        try {
+          await bar(`/apps?app_id=${encodeURIComponent(o.id)}`, { method: "DELETE" }, 30000);
         } catch {}
       }
       await bar(`/apps/launch?app_id=${APP_ID}`, { method: "POST" }, 15000);

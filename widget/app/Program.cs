@@ -121,7 +121,11 @@ sealed class Bar
         return text.Trim() == "" ? new JsonObject() : JsonNode.Parse(text) as JsonObject ?? new JsonObject();
     }
 
-    string SettingsPath => $"apps/settings?app_id={Uri.EscapeDataString(appId)}";
+    string SettingsPath => SettingsFor(appId);
+    static string SettingsFor(string id) => $"apps/settings?app_id={Uri.EscapeDataString(id)}";
+
+    /// <summary>Earlier ids of Marquee. An update moves the message over and removes the old app.</summary>
+    static readonly string[] OldIds = ["app.rocketgod.marquee"];
 
     /// <summary>Compares dotted version numbers.</summary>
     static int CompareVersions(string a, string b)
@@ -137,32 +141,54 @@ sealed class Bar
         return 0;
     }
 
+    /// <summary>Marquee's apps on the bar: this id and any old ones, with their versions.</summary>
+    async Task<(string? mine, List<(string id, string version)> old)> Installed()
+    {
+        var apps = (await Call(HttpMethod.Get, "apps/list"))["apps"] as JsonArray ?? [];
+        string? mine = null;
+        var old = new List<(string, string)>();
+        foreach (var a in apps.OfType<JsonObject>())
+        {
+            var id = a["id"]?.ToString() ?? "";
+            var version = a["version"]?.ToString() ?? "0.0.0";
+            if (id == appId) mine = version;
+            else if (OldIds.Contains(id)) old.Add((id, version));
+        }
+        return (mine, old);
+    }
+
     public async Task<JsonObject> State()
     {
-        JsonObject list;
+        string? mine;
+        List<(string id, string version)> old;
         try
         {
-            list = await Call(HttpMethod.Get, "apps/list");
+            (mine, old) = await Installed();
         }
         catch (Exception e)
         {
             return new JsonObject { ["connected"] = false, ["addr"] = Addr, ["error"] = e.Message };
         }
-        var mine = (list["apps"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault(a => a["id"]?.ToString() == appId);
-        var installed = mine?["version"]?.ToString();
+        var installed = mine ?? old.Select(o => o.version).FirstOrDefault();
+        // Offer an install when the bar doesn't have Marquee, or an update when this copy is newer
+        // or the bar still has Marquee under an old id.
+        string? offer = package == null ? null
+            : installed == null ? "install"
+            : mine == null || CompareVersions(bundledVersion, mine) > 0 ? "update"
+            : null;
         var app = new JsonObject
         {
             ["installed"] = installed,
             ["bundled"] = package != null ? bundledVersion : null,
-            // Offer an install when the bar doesn't have Marquee, or an update when this copy is newer.
-            ["offer"] = package == null ? null : installed == null ? "install" : CompareVersions(bundledVersion, installed) > 0 ? "update" : null,
+            ["offer"] = offer,
         };
         var values = new JsonObject();
-        if (installed != null)
+        var source = mine != null ? appId : old.Select(o => o.id).FirstOrDefault();
+        if (source != null)
         {
             try
             {
-                values = (await Call(HttpMethod.Get, SettingsPath))["values"]?.DeepClone() as JsonObject ?? new JsonObject();
+                values = (await Call(HttpMethod.Get, SettingsFor(source)))["values"]?.DeepClone() as JsonObject ?? new JsonObject();
             }
             catch { }
         }
@@ -173,27 +199,40 @@ sealed class Bar
     public async Task Install()
     {
         if (package == null) throw new Exception("This copy of Marquee doesn't include the bar app.");
-        // An update keeps the message and look that are on the bar now.
+        var (mine, old) = await Installed();
+        // An update keeps the message and look that are on the bar now, even from an old id.
         JsonObject? kept = null;
-        try
+        var source = mine != null ? appId : old.Select(o => o.id).FirstOrDefault();
+        if (source != null)
         {
-            kept = await Call(HttpMethod.Get, SettingsPath);
+            try
+            {
+                kept = (await Call(HttpMethod.Get, SettingsFor(source)))["values"] as JsonObject;
+            }
+            catch { }
         }
-        catch { }
         var staged = await Call(HttpMethod.Post, "apps/stage", upload: package, seconds: 120);
         var key = staged["install_key"]?.ToString();
         if (string.IsNullOrEmpty(key)) throw new Exception(staged["error_code"]?.ToString() ?? "The BUSY Bar didn't accept the app.");
         await Call(HttpMethod.Post, $"apps/install?install_key={Uri.EscapeDataString(key)}", seconds: 120);
-        if (kept?["values"] is JsonObject old && old.Count > 0)
+        if (kept != null && kept.Count > 0)
         {
             try
             {
                 var now = await Call(HttpMethod.Get, SettingsPath);
-                if (now["values"]?.ToJsonString() != old.ToJsonString())
+                if (now["values"]?.ToJsonString() != kept.ToJsonString())
                 {
-                    now["values"] = old.DeepClone();
+                    now["values"] = kept.DeepClone();
                     await Call(HttpMethod.Put, SettingsPath, now);
                 }
+            }
+            catch { }
+        }
+        foreach (var (id, _) in old)
+        {
+            try
+            {
+                await Call(HttpMethod.Delete, $"apps?app_id={Uri.EscapeDataString(id)}", seconds: 30);
             }
             catch { }
         }
