@@ -458,8 +458,10 @@ function setStatus(ok, text) {
   $("statusText").parentElement.title = addr ? `BUSY Bar address: ${addr}` : "";
 }
 
-// ---- First-run help: find the bar, then put Marquee on it -------------------------------
-let installing = false;
+// ---- First-run help: find the bar, then get Marquee from the BUSY Apps Catalog ----------
+// Marquee is installed and updated only through the catalog, so every copy on a bar is a
+// reviewed release. This app just sends messages to it.
+const CATALOG = "https://apps.busy.app";
 let misses = 0;
 function setup(s) {
   const card = $("setup");
@@ -479,40 +481,19 @@ function setup(s) {
       requestAnimationFrame(fitView);
     }
   };
-  if (installing) return;
   if (!s || !s.connected) {
     // A single missed check is often just the bar busy; say something after two.
     if (++misses >= 2) show("🔌", "Plug in your BUSY Bar", "Connect it to this computer with its USB cable. Marquee finds it on its own.");
     return;
   }
   misses = 0;
-  const app = s.app;
-  if (app?.offer === "install") {
-    show("✨", "One more step: put Marquee on your BUSY Bar", "It takes about ten seconds, and you only do it once.", "Install on my bar");
-  } else if (app?.offer === "update") {
-    show("⬆️", "A newer Marquee is ready for your BUSY Bar", `Your bar has version ${app.installed}. This one is ${app.bundled}.`, "Update my bar");
+  if (!s.app?.installed) {
+    show("✨", "One more step: get Marquee for your BUSY Bar", "Install Marquee on your bar from the BUSY Apps Catalog. It's free. This window picks it up as soon as it's there.", "Open the catalog");
   } else {
     hide();
   }
 }
-$("setupGo").onclick = async () => {
-  installing = true;
-  $("setupGo").disabled = true;
-  $("setupMsg").innerHTML = "<b>Installing Marquee on your BUSY Bar...</b>Keep the bar plugged in. This takes a few seconds.";
-  const r = await fetch("/api/install", { method: "POST" }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
-  installing = false;
-  $("setupGo").disabled = false;
-  if (r.ok) {
-    $("setupIcon").textContent = "🎉";
-    $("setupMsg").innerHTML = "<b>Marquee is on your BUSY Bar</b>Type a message and click Send.";
-    $("setupGo").hidden = true;
-    first = true; // load the bar's settings fresh
-    setTimeout(() => { $("setup").hidden = true; fitView(); poll(); }, 3500);
-  } else {
-    toast(`Couldn't install: ${r.error}`, true);
-    poll();
-  }
-};
+$("setupGo").onclick = () => window.open(CATALOG, "_blank");
 
 let first = true;
 async function poll() {
@@ -528,7 +509,7 @@ async function poll() {
       $("text").value = state.text;
       render();
     }
-    first = false;
+    if (s.connected && s.app?.installed) first = false;
   } catch {
     setStatus(false, "Lost touch with the app - close and reopen Marquee");
   }

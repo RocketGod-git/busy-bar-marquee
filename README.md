@@ -2,6 +2,8 @@
 
 **Turn your [BUSY Bar](https://busy.bar) into an animated, full-color message board.** Type a message on your computer, pick a look, and it lights up the bar, emoji included.
 
+Get Marquee for your bar from the [BUSY Apps Catalog](https://apps.busy.app). This repository is its source code, plus a free desktop app for sending it messages.
+
 <p align="center">
   <a href="https://github.com/RocketGod-git/busy-bar-marquee/releases/latest/download/Marquee.exe"><img src="https://img.shields.io/badge/Download_for_Windows-Marquee.exe-ff2a8a?style=for-the-badge&logo=windows&logoColor=white" alt="Download Marquee.exe for Windows"></a>
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/RocketGod-git/busy-bar-marquee?style=for-the-badge&label=Latest&color=00b8d4" alt="Latest release"></a>
@@ -22,15 +24,17 @@
 
 You need a BUSY Bar, its USB cable, and a Windows PC. (Mac or Linux? See [below](#mac-or-linux).)
 
-**1. Download [Marquee.exe](https://github.com/RocketGod-git/busy-bar-marquee/releases/latest/download/Marquee.exe).** It's a single file with nothing else to install.
+**1. Install Marquee on your bar from the [BUSY Apps Catalog](https://apps.busy.app).** That's also where it gets its updates.
 
-**2. Plug in your BUSY Bar and open Marquee.exe.** Marquee finds the bar on its own.
+**2. Download [Marquee.exe](https://github.com/RocketGod-git/busy-bar-marquee/releases/latest/download/Marquee.exe).** It's a single file with nothing else to install.
+
+**3. Plug in your BUSY Bar and open Marquee.exe.** Marquee finds the bar on its own.
 
 > Windows may say it "protected your PC" the first time, because Marquee is new. Click **More info**, then **Run anyway**.
 
-**3. Click "Install on my bar."** The first time, Marquee puts its app on your BUSY Bar for you. It takes about ten seconds.
+If Marquee isn't on the bar yet, the app says so and links to the catalog. It picks the bar app up as soon as it's installed.
 
-<p align="center"><img src="docs/app-setup.png" width="820" alt="Marquee offering to install itself on the BUSY Bar with one click"></p>
+<p align="center"><img src="docs/app-setup.png" width="820" alt="The Marquee desktop app pointing to the BUSY Apps Catalog to install Marquee on the bar"></p>
 
 That's it. Type a message, tap an emoji, pick a look, and click **Send**. Once it's on the bar, it keeps running even with your computer off.
 
@@ -65,12 +69,13 @@ The pin button next to the views keeps Marquee on top of your other windows.
 
 ## Mac or Linux
 
-1. Install [Node.js 24](https://nodejs.org) if you don't have it.
+1. Install Marquee on your bar from the [BUSY Apps Catalog](https://apps.busy.app), and install [Node.js 24](https://nodejs.org) if you don't have it.
 2. Download [marquee-widget-mac-linux.zip](https://github.com/RocketGod-git/busy-bar-marquee/releases/latest/download/marquee-widget-mac-linux.zip) and unzip it.
 3. Plug in your BUSY Bar with its USB cable.
 4. **Mac:** double-click `widget/Marquee.command`. If macOS says it can't check the file, right-click it, choose **Open**, then **Open** again (on newer macOS, go to **System Settings → Privacy & Security** and click **Open Anyway**).
    **Linux:** run `node widget/server.mjs --open`.
-5. Click **Install on my bar**, just like on Windows. Marquee opens in a Chrome or Edge app window.
+
+Marquee opens in a Chrome or Edge app window.
 
 ## Over Wi-Fi
 
@@ -98,12 +103,12 @@ You need Node.js 24 (Node 26 isn't supported by the BUSY build tools yet).
 
 ```sh
 npm run setup        # install dependencies
-npm run build        # build marquee/dist/app.rocketgod.marquee.tgz
+npm run build        # build marquee/dist/dev.rocketgod.marquee.tgz
 ```
 
-To install on a bar connected over USB: `cd marquee && npm run app:install && npm run app:run`.
+To try your own build on a bar connected over USB: `cd marquee && npm run app:install && npm run app:run`. Everyone else should install Marquee from the [BUSY Apps Catalog](https://apps.busy.app), which is how it's released and updated.
 
-To build `Marquee.exe` (needs the .NET 10 SDK), run `npm run build` first so the bar app gets packed inside it, then `powershell -ExecutionPolicy Bypass -File widget\app\install.ps1`. That installs it to `%LOCALAPPDATA%\Programs\Marquee` and adds Start menu and desktop shortcuts.
+To build `Marquee.exe` (needs the .NET 10 SDK), run `powershell -ExecutionPolicy Bypass -File widget\app\install.ps1`. That installs it to `%LOCALAPPDATA%\Programs\Marquee` and adds Start menu and desktop shortcuts.
 
 Developer tools in `tools/`:
 
@@ -117,10 +122,12 @@ Developer tools in `tools/`:
 
 `marquee/preview.mts` draws looks straight onto a connected bar from your computer. All of these honor `BUSY_ADDR`.
 
-Pushing a tag like `v1.0.0` builds the bar app, packs it into `Marquee.exe`, and publishes a GitHub release with `Marquee.exe`, the `.tgz` file, and the Mac/Linux widget zip. The release page opens with the install steps from `.github/release-notes.md`, followed by the tag's message as "What's new".
+Pushing a tag like `v1.0.0` publishes a GitHub release of the desktop app: `Marquee.exe` and the Mac/Linux widget zip. New versions of the bar app go out through the [BUSY Apps Catalog](https://github.com/busy-app/busy-apps-catalog) instead. The release page opens with the install steps from `.github/release-notes.md`, followed by the tag's message as "What's new".
 
 ## Credits
 
-BUSY Bar, `@busy-app/busy-lib`, and `@busy-app/cli` are by Flipper FZCO. The pixel font is derived from the BUSY Bar's built-in fonts.
+BUSY Bar, `@busy-app/busy-lib`, and `@busy-app/cli` are by Flipper FZCO.
 
-Released under the [MIT License](LICENSE).
+The pixel font in `marquee/src/font.ts` comes from the BUSY Bar's built-in fonts, which are based on [Ark Pixel Font](https://github.com/TakWolf/ark-pixel-font). Copyright © 2021 TakWolf and © 2024–2026 Flipper FZCO. It's licensed under the [SIL Open Font License 1.1](LICENSES/OFL-1.1.txt).
+
+Marquee's code is released under the [MIT License](LICENSE). The font keeps its own license above.

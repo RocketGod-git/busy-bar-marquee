@@ -21,3 +21,15 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+
+  desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build widget/app/Marquee.csproj -c Release

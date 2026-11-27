@@ -10,5 +10,3 @@ widget/config.json
 widget/app/bin/
 widget/app/obj/
 widget/app/web/
-widget/app/payload/
-widget/marquee.tgz
